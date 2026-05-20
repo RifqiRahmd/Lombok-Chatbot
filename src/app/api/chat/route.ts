@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import pg from "pg";
-import type { Client } from "pg";
-
+import { createClient } from "@supabase/supabase-js";
 
 import { TYPO_MAP, KNOWN_WORDS } from "./constants";
 
@@ -10,42 +8,60 @@ export const runtime = "nodejs";
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
 // ===================================================
-// DB CONFIG — Supabase connection string
+// SUPABASE CLIENT — server-side only (service role key bypasses RLS)
 // ===================================================
-const DB_CONFIG = {
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-};
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 // ===================================================
-// SCHEMA CACHE
+// SCHEMA — hardcoded (stable; avoids querying information_schema)
+// Update this if you add/remove columns in your table.
 // ===================================================
+const HARDCODED_SCHEMA = `Tables:
+- restoran (id, nama_resto, daerah, alamat, rating, harga, tipe_makanan, jenis_tempat, latitude, longitude)
+`;
+
 let cachedSchema: string | null = null;
 
-async function getSchema(db: Client): Promise<string> {
-  if (cachedSchema) return cachedSchema;
+function getSchema(): string {
+  if (!cachedSchema) {
+    cachedSchema = HARDCODED_SCHEMA;
+    console.log("Schema loaded:\n", cachedSchema);
+  }
+  return cachedSchema;
+}
 
-  const tablesRes = await db.query(`
-    SELECT table_name
-    FROM information_schema.tables
-    WHERE table_schema = 'public'
-  `);
+// ===================================================
+// RAW SQL EXECUTOR — via Supabase RPC function exec_sql
+// Requires this function to exist in your Supabase project:
+//
+// CREATE OR REPLACE FUNCTION exec_sql(query text)
+// RETURNS json
+// LANGUAGE plpgsql
+// SECURITY DEFINER
+// AS $$
+// DECLARE result json;
+// BEGIN
+//   EXECUTE 'SELECT json_agg(row_to_json(t)) FROM (' || query || ') t' INTO result;
+//   RETURN COALESCE(result, '[]'::json);
+// END;
+// $$;
+// ===================================================
+async function runSQL(sql: string): Promise<any[]> {
+  const { data, error } = await supabase.rpc("exec_sql", { query: sql });
 
-  let schema = "Tables:\n";
-
-  for (const t of tablesRes.rows) {
-    const tableName: string = t.table_name;
-    const colsRes = await db.query(
-      `SELECT column_name FROM information_schema.columns WHERE table_name = $1`,
-      [tableName]
-    );
-    const colNames = colsRes.rows.map((c: any) => c.column_name).join(", ");
-    schema += `- ${tableName} (${colNames})\n`;
+  if (error) {
+    console.error("Supabase RPC error:", error);
+    throw new Error(error.message);
   }
 
-  cachedSchema = schema;
-  console.log("Schema loaded:\n", cachedSchema);
-  return cachedSchema;
+  // data is already a JSON array (or null)
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  // Sometimes Supabase wraps it — unwrap if needed
+  return data as any[];
 }
 
 // ===================================================
@@ -151,7 +167,6 @@ function normalizeQuestion(text: string): { normalized: string; hargaFilter: str
   }
 
   // Hapus kata harga dari kalimat supaya LLM tidak salah interpretasi
-  // misal: "sedang" bisa disalahartikan LLM sebagai nama restoran
   normalized = normalized
     .replace(/\bmahal\b/gi, "")
     .replace(/\bsedang\b/gi, "")
@@ -204,8 +219,6 @@ async function callGroq(prompt: string): Promise<string> {
 // MAIN HANDLER
 // ===================================================
 export async function POST(request: Request) {
-  let db: Client | null = null;
-
   try {
     const body = await request.json();
     const question: string = (body?.question ?? "").trim();
@@ -228,11 +241,11 @@ export async function POST(request: Request) {
 
     // Pre-fix "gil" → "gili" sebelum TYPO_MAP (hardcoded supaya pasti jalan)
     const preFixed = questionLower
-      .replace(/gil\s+trawangan/gi, "gili trawangan")
-      .replace(/gil\s+meno/gi, "gili meno")
-      .replace(/gil\s+air/gi, "gili air")
-      .replace(/gil\s+asahan/gi, "gili asahan")
-      .replace(/gil\s+gede/gi, "gili gede");
+      .replace(/\bgil\s+trawangan\b/gi, "gili trawangan")
+      .replace(/\bgil\s+meno\b/gi, "gili meno")
+      .replace(/\bgil\s+air\b/gi, "gili air")
+      .replace(/\bgil\s+asahan\b/gi, "gili asahan")
+      .replace(/\bgil\s+gede\b/gi, "gili gede");
 
     const correctedQuestion = correctTypos(preFixed);
     console.log("ORIGINAL :", questionLower);
@@ -301,12 +314,9 @@ export async function POST(request: Request) {
     const { normalized, hargaFilter } = normalizeQuestion(correctedQuestion);
 
     // ===================================================
-    // STEP 5: CONNECT DB
+    // STEP 5: GET SCHEMA
     // ===================================================
-    db = new pg.Client(DB_CONFIG);
-    await db.connect();
-
-    const schema = await getSchema(db);
+    const schema = getSchema();
 
     // ===================================================
     // STEP 6: DETEKSI INTENT "LIST SEMUA DAERAH"
@@ -323,17 +333,18 @@ export async function POST(request: Request) {
     );
 
     if (isDaerahListIntent) {
-      const daerahRes = await db.query(`
+      const daerahSql = `
         SELECT daerah, COUNT(id) as jumlah_restoran
         FROM restoran
         GROUP BY daerah
         ORDER BY daerah ASC
-      `);
+      `;
+      const daerahRows = await runSQL(daerahSql);
 
       return NextResponse.json({
         success: true,
         query: "SELECT daerah, COUNT(id) FROM restoran GROUP BY daerah ORDER BY daerah ASC",
-        result: daerahRes.rows,
+        result: daerahRows,
         type: "daerah",
         answer: greetingPrefix + "Ini semua daerah yang tersedia di database aku 👇",
       });
@@ -390,10 +401,9 @@ SQL:
     }
 
     // ===================================================
-    // STEP 9: EXECUTE QUERY
+    // STEP 9: EXECUTE QUERY via Supabase RPC
     // ===================================================
-    const resultRes = await db.query(query);
-    let result: any[] = resultRes.rows;
+    let result: any[] = await runSQL(query);
 
     if (result.length > 5) result = result.slice(0, 5);
 
@@ -448,13 +458,5 @@ Jawaban (1 kalimat saja):
       { error: err?.message || "Terjadi kesalahan pada server" },
       { status: 500 }
     );
-  } finally {
-    if (db) {
-      try {
-        await db.end();
-      } catch (_) {
-        // abaikan error saat close koneksi
-      }
-    }
   }
 }
