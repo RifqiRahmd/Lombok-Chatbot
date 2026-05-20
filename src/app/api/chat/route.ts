@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import pg from "pg";
+import type { Client } from "pg";
 
-const { Client } = pg;
 
 import { TYPO_MAP, KNOWN_WORDS } from "./constants";
 
@@ -303,7 +303,7 @@ export async function POST(request: Request) {
     // ===================================================
     // STEP 5: CONNECT DB
     // ===================================================
-    db = new Client(DB_CONFIG);
+    db = new pg.Client(DB_CONFIG);
     await db.connect();
 
     const schema = await getSchema(db);
