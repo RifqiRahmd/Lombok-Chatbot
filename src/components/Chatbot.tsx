@@ -118,8 +118,8 @@ export default function Chatbot() {
         onClick={() => setOpen(!open)}
         style={{
           position: "fixed",
-          bottom: "24px",
-          right: "24px",
+          bottom: "clamp(16px, 4dvh, 24px)",
+          right: "clamp(16px, 4vw, 24px)",
           zIndex: 50,
           width: "58px",
           height: "58px",
@@ -156,10 +156,10 @@ export default function Chatbot() {
         <div
           style={{
             position: "fixed",
-            bottom: "96px",
-            right: "24px",
-            width: "min(450px, 95vw)",
-            height: "min(650px, 85vh)",
+            bottom: "clamp(84px, 12dvh, 96px)",
+            right: "clamp(16px, 4vw, 24px)",
+            width: "min(450px, calc(100vw - 32px))",
+            height: "min(650px, calc(100dvh - 120px))",
             borderRadius: "22px",
             overflow: "hidden",
             boxShadow: "0 20px 60px rgba(59,31,14,0.22)",
@@ -219,7 +219,7 @@ export default function Chatbot() {
                       color: m.role === "user" ? "#fffaf4" : "#3b1f0e",
                       padding: "12px 14px",
                       borderRadius: 14,
-                      maxWidth: "80%",
+                      maxWidth: "85%",
                       fontSize: 14,
                       whiteSpace: "pre-wrap",
                       border: m.role === "assistant" ? "1px solid #e8d5b7" : "none",
@@ -343,7 +343,7 @@ export default function Chatbot() {
                 padding: 12,
                 borderRadius: 10,
                 border: "1px solid #e0c9a6",
-                fontSize: 14,
+                fontSize: 16,
                 background: "#fdf6ee",
                 color: "#3b1f0e",
                 outline: "none",
