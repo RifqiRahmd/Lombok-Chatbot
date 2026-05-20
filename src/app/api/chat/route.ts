@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { Client } from "pg";
+import pg from "pg";
+
+const { Client } = pg;
 
 import { TYPO_MAP, KNOWN_WORDS } from "./constants";
 
@@ -8,14 +10,11 @@ export const runtime = "nodejs";
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
 // ===================================================
-// DB CONFIG — baca dari .env.local
+// DB CONFIG — Supabase connection string
 // ===================================================
 const DB_CONFIG = {
-  host: process.env.DB_HOST || "localhost",
-  user: process.env.DB_USER || "postgres",
-  password: process.env.DB_PASSWORD || "",
-  database: process.env.DB_NAME || "lombok",
-  port: Number(process.env.DB_PORT) || 5432,
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
 };
 
 // ===================================================
