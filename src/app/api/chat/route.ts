@@ -371,6 +371,7 @@ Rules:
 - If user asks for a list of regions ("daerah"), use: SELECT DISTINCT daerah FROM restoran ORDER BY daerah ASC
 - If user asks for the count/number of restaurants, ALWAYS include 'daerah' in SELECT: SELECT daerah, COUNT(id) as jumlah_restoran FROM restoran [with optional WHERE clause] GROUP BY daerah ORDER BY daerah ASC
 - For tipe_makanan filters, use: tipe_makanan LIKE '%value%'
+- If user asks about "pantai" (beach) or similar locations, use: alamat LIKE '%pantai%'
 - If user mentions "lombok" or "pulau lombok", do NOT add WHERE daerah LIKE '%lombok%'
 
 ${hargaFilter
