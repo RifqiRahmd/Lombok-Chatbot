@@ -75,9 +75,7 @@ export default function Chatbot() {
         ...prev,
         {
           role: "assistant",
-          content: isEmpty
-            ? "😔 Maaf, aku belum nemuin yang cocok.\nCoba pilih ini ya 👇"
-            : data.answer || "",
+          content: data.answer || "😔 Maaf, aku belum nemuin yang cocok.\nCoba pilih ini ya 👇",
           data: isEmpty
             ? suggestions.map((s) => ({ suggestion: s }))
             : data.result || [],
@@ -279,7 +277,7 @@ export default function Chatbot() {
                               🍽️ {toTitleCase(r.nama_resto || "")}
                             </div>
                             <div style={{ fontSize: 12, color: "#9c5a1d", marginTop: 2 }}>
-                              ⭐ {r.rating} | 💰 {formatHarga(r.harga)} | 📍 {toTitleCase(r.daerah || "")}
+                              ⭐ {r.rating} {r.jumlah_review ? `(${r.jumlah_review} ulasan)` : ""} | 💰 {formatHarga(r.harga)} | 📍 {toTitleCase(r.daerah || "")}
                             </div>
                             <div style={{ fontSize: 12, color: "#7a4f2e", marginTop: 2 }}>
                               {toTitleCase(r.alamat)}
@@ -290,26 +288,29 @@ export default function Chatbot() {
                     )}
 
                     {/* CHIP DAERAH */}
-                    {m.role === "assistant" && m.type === "daerah" && m.data && m.data.length > 0 && !m.data[0]?.jumlah_restoran && (
+                    {m.role === "assistant" && m.type === "daerah" && m.data && m.data.length > 0 && (
                       <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {m.data.map((d: any, idx: number) => (
-                          <button
-                            key={idx}
-                            onClick={() => sendMessage(`rekomendasi restoran di ${toTitleCase(d.daerah)}`)}
-                            style={{
-                              padding: "6px 10px",
-                              borderRadius: 20,
-                              border: "1px solid #c1440e",
-                              background: "#fdebd0",
-                              color: "#9c3d0e",
-                              fontSize: 12,
-                              cursor: "pointer",
-                              fontFamily: "inherit",
-                            }}
-                          >
-                            📍 {toTitleCase(d.daerah)} — <b>{d.jumlah_restoran ?? d.count ?? d.count_id ?? 0} restoran</b>
-                          </button>
-                        ))}
+                        {m.data.map((d: any, idx: number) => {
+                          const count = d.jumlah_restoran ?? d.count ?? d.count_id;
+                          return (
+                            <button
+                              key={idx}
+                              onClick={() => sendMessage(`rekomendasi restoran di ${toTitleCase(d.daerah)}`)}
+                              style={{
+                                padding: "6px 10px",
+                                borderRadius: 20,
+                                border: "1px solid #c1440e",
+                                background: "#fdebd0",
+                                color: "#9c3d0e",
+                                fontSize: 12,
+                                cursor: "pointer",
+                                fontFamily: "inherit",
+                              }}
+                            >
+                              📍 {toTitleCase(d.daerah)} {count ? <span>— <b>{count} restoran</b></span> : null}
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
                   </div>

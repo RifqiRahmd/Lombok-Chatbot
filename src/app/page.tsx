@@ -136,7 +136,7 @@ export default function HomePage() {
           Discover The Culinary of Lombok
         </h1>
         <p style={{ color: '#7a4f2e', fontSize: '1.05rem' }}>
-          Temukan beberapa rekomendasi restoran di Pulau Lombok, Indonesia.
+          Temukan beberapa rekomendasi restoran di Pulau Lombok, Indonesia.          
         </p>
       </section>
 

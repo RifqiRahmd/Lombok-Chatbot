@@ -12,7 +12,7 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 // ===================================================
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!  
 );
 
 // ===================================================
@@ -20,7 +20,7 @@ const supabase = createClient(
 // Update this if you add/remove columns in your table.
 // ===================================================
 const HARDCODED_SCHEMA = `Tables:
-- restoran (id, nama_resto, daerah, alamat, rating, harga, tipe_makanan, jenis_tempat, latitude, longitude)
+- restoran (id, nama_resto, daerah, alamat, rating, jumlah_review, harga, tipe_makanan, jenis_tempat, latitude, longitude)
 `;
 
 let cachedSchema: string | null = null;
@@ -245,68 +245,68 @@ export async function POST(request: Request) {
       .replace(/\bgil\s+meno\b/gi, "gili meno")
       .replace(/\bgil\s+air\b/gi, "gili air")
       .replace(/\bgil\s+asahan\b/gi, "gili asahan")
-      .replace(/\bgil\s+gede\b/gi, "gili gede");
+      .replace(/\bgil\s+gede\b/gi, "gili gede")
+      .replace(/\boleh2\b/gi, "oleh oleh")
+      .replace(/\boleh"/gi, "oleh oleh")
+      .replace(/\boleh-oleh\b/gi, "oleh oleh");
 
     const correctedQuestion = correctTypos(preFixed);
     console.log("ORIGINAL :", questionLower);
     console.log("CORRECTED:", correctedQuestion);
 
-    const tokens: string[] = correctedQuestion.match(/\b\w+\b/g) ?? [];
-
     // ===================================================
-    // STEP 2: GREETING DETECTION
+    // STEP 2 & 3: INTENT & GREETING DETECTION VIA LLM
     // ===================================================
-    const greetings = [
-      "halo", "hi", "hello", "hey",
-      "selamat pagi", "selamat siang",
-      "selamat sore", "selamat malam", "apa kabar",
-    ];
+    const intentPrompt = `
+Kamu adalah "Resto Assistant", chatbot ramah yang membantu mencari restoran di Lombok.
 
-    const detectedGreeting = greetings.find((g) => correctedQuestion.includes(g));
-    const greetingReplies = ["Halo! 😊", "Hey! 👋", "Hai! 👋"];
-    const greetingPrefix = detectedGreeting
-      ? greetingReplies[Math.floor(Math.random() * greetingReplies.length)] + " "
-      : "";
+Analisis pesan user berikut: "${question}"
 
-    const isOnlyGreeting = !!detectedGreeting && greetings.includes(correctedQuestion);
-    if (isOnlyGreeting) {
+Tentukan intent (tujuan) dari pesan tersebut ke dalam salah satu dari 3 kategori berikut:
+1. "GREETING": Jika user hanya menyapa (contoh: halo, selamat pagi, hai, bro) atau basa-basi ringan (contoh: apa kabar, terima kasih) TANPA mencari restoran.
+2. "RESTAURANT_SEARCH": Jika user mencari restoran, makanan, cafe, harga, rating, daerah, atau lokasi (contoh: rekomendasi makan siang, daerah mana saja, halo cari cafe).
+3. "UNRELATED": Jika user membahas topik di luar pencarian restoran atau sapaan (contoh: jadwal pesawat, berita hari ini, rumus matematika).
+
+Kembalikan HANYA dalam format JSON valid tanpa markdown (tanpa backticks \`\`\`json):
+{
+  "intent": "GREETING" | "RESTAURANT_SEARCH" | "UNRELATED",
+  "reply": "Jika intent GREETING atau UNRELATED, tulis balasan ramah & natural di sini dalam bahasa Indonesia. Jika GREETING, balas sapaannya (misal 'Selamat pagi! 🌅'). Jika UNRELATED, tolak dengan sopan dan arahkan untuk mencari restoran. Jika RESTAURANT_SEARCH, kosongkan string ini.",
+  "greeting_prefix": "Jika intent RESTAURANT_SEARCH tapi user juga menyisipkan sapaan (misal 'Halo, cari makanan'), tulis sapaan balasannya di sini (misal 'Halo! 👋 '). Jika tidak ada sapaan, kosongkan."
+}
+`;
+
+    let intentData = { intent: "RESTAURANT_SEARCH", reply: "", greeting_prefix: "" };
+    try {
+      let intentResponse = await callGroq(intentPrompt);
+      intentResponse = intentResponse.replace(/\`\`\`json/gi, "").replace(/\`\`\`/g, "").trim();
+      intentData = JSON.parse(intentResponse);
+    } catch (e) {
+      console.error("Failed to parse intent JSON, falling back to RESTAURANT_SEARCH", e);
+    }
+
+    if (intentData.intent === "GREETING") {
+      const askSuffix = intentData.reply.endsWith("?") ? "" : " Ada yang bisa aku bantu untuk cari makan hari ini?";
       return NextResponse.json({
         success: true,
         query: null,
         result: [],
         type: "suggestion",
-        answer: greetingPrefix.trim() + " Ada yang bisa saya bantu?",
+        answer: (intentData.reply.trim() + " " + askSuffix).trim(),
       });
     }
 
-    // ===================================================
-    // STEP 3: INTENT CHECK
-    // ===================================================
-    const restaurantKeywords = [
-      "restoran", "restaurant", "tempat makan", "makan", "kuliner",
-      "cafe", "rumah makan", "warung", "food", "minum",
-      "menu", "rating", "harga", "resto", "daerah", "pusat", "oleh oleh",
-    ];
-
-    const isRestaurantQuery =
-      restaurantKeywords.some((k) => correctedQuestion.includes(k)) ||
-      restaurantKeywords.some((k) =>
-        k.split(/\s+/).some((kPart) =>
-          tokens.some((t) => similarity(t, kPart) >= 0.72)
-        )
-      );
-
-    if (!isRestaurantQuery) {
+    if (intentData.intent === "UNRELATED") {
       return NextResponse.json({
         success: false,
         warning: true,
-        answer:
-          "⚠️ Pertanyaan tidak berkaitan dengan restoran. Silakan ajukan pertanyaan seputar restoran / kuliner.",
+        answer: intentData.reply || "⚠️ Pertanyaan tidak berkaitan dengan restoran. Silakan ajukan pertanyaan seputar restoran / kuliner di Lombok.",
         result: [],
         query: null,
         type: "suggestion",
       });
     }
+
+    const greetingPrefix = intentData.greeting_prefix ? intentData.greeting_prefix.trim() + " " : "";
 
     // ===================================================
     // STEP 4: NORMALISASI + EXTRACT HARGA FILTER
@@ -356,18 +356,20 @@ export async function POST(request: Request) {
     const sqlPrompt = `
 You are an expert SQL generator for PostgreSQL.
 Return ONLY the raw SQL query. No markdown. No explanation. No comments.
-Always ORDER BY rating DESC.
+Always ORDER BY rating DESC (unless user asks for popular/viral).
 Always LIMIT 5 if user asks about restaurants.
 Use table name: restoran.
 Do NOT use SELECT *.
-Always include these columns in SELECT: nama_resto, rating, harga, daerah, latitude, longitude, alamat, jenis_tempat.
+Always include these columns in SELECT: nama_resto, rating, jumlah_review, harga, daerah, latitude, longitude, alamat, jenis_tempat.
 
 Rules:
 - All column names and string values in the database are lowercase.
+- If user asks about "populer", "terkenal", "hits", or "viral", use: ORDER BY jumlah_review DESC, rating DESC
 - If user asks about "oleh oleh", use: jenis_tempat LIKE '%oleh oleh%'
 - If user asks about "cafe", use: jenis_tempat LIKE '%cafe%'
 - If user mentions a restaurant name, use: nama_resto LIKE '%value%'
-- If user asks about "daerah" or list of locations, return only DISTINCT daerah (do NOT include restaurant columns).
+- If user asks for a list of regions ("daerah"), use: SELECT DISTINCT daerah FROM restoran ORDER BY daerah ASC
+- If user asks for the count/number of restaurants, ALWAYS include 'daerah' in SELECT: SELECT daerah, COUNT(id) as jumlah_restoran FROM restoran [with optional WHERE clause] GROUP BY daerah ORDER BY daerah ASC
 - For tipe_makanan filters, use: tipe_makanan LIKE '%value%'
 - If user mentions "lombok" or "pulau lombok", do NOT add WHERE daerah LIKE '%lombok%'
 
@@ -405,7 +407,10 @@ SQL:
     // ===================================================
     let result: any[] = await runSQL(query);
 
-    if (result.length > 5) result = result.slice(0, 5);
+    const isRestoQuery = result.length > 0 && !!result[0].nama_resto;
+    if (isRestoQuery && result.length > 5) {
+      result = result.slice(0, 5);
+    }
 
     if (result.length === 0) {
       return NextResponse.json({
