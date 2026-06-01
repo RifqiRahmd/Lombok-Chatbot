@@ -68,7 +68,7 @@ export const TYPO_MAP: Record<string, string> = {
   // daerah — senaru
   "snaru": "senaru", "senaruu": "senaru", "senuru": "senaru",
   // makanan
-  "seafod": "seafood", "seaffod": "seafood",
+  "seafod": "makanan laut", "seaffod": "makanan laut", "seafood": "makanan laut",
   "suhsi": "sushi",
   "piza": "pizza", "pizzza": "pizza",
   "burgr": "burger", "burgerr": "burger",
@@ -88,7 +88,7 @@ export const TYPO_MAP: Record<string, string> = {
 export const KNOWN_WORDS: string[] = [
   // kata umum
   "restoran", "rekomendasi", "murah", "mahal", "sedang", "rating",
-  "harga", "daerah", "seafood", "makan", "cafe", "warung", "kuliner",
+  "harga", "daerah", "laut", "makan", "cafe", "warung", "kuliner",
   "menu", "tempat", "lombok", "oleh", "pusat", "makanan", "minuman",
   "sushi", "pizza", "burger",
   // semua daerah yang tersedia di database
