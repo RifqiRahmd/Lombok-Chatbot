@@ -99,6 +99,77 @@ export default function HomePage() {
           LOMBOK
         </span>
 
+        {/* Filter & Search */}
+        <div style={{ display: 'flex', gap: '0.8rem', flex: 1, maxWidth: '750px', margin: '0 2rem' }}>
+          
+          <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+            <input
+              type="text"
+              placeholder="Cari restoran..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                width: '100%', padding: '0.5rem 2.5rem 0.5rem 1.2rem',
+                border: '1px solid rgba(224, 201, 166, 0.5)', borderRadius: '20px',
+                background: 'rgba(255, 250, 244, 0.7)', fontSize: '0.9rem', color: '#3b1f0e',
+                outline: 'none', fontFamily: 'inherit', backdropFilter: 'blur(4px)',
+                transition: 'background 0.3s, border-color 0.3s'
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.background = '#fffaf4';
+                e.currentTarget.style.borderColor = '#c1440e';
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 250, 244, 0.7)';
+                e.currentTarget.style.borderColor = 'rgba(224, 201, 166, 0.5)';
+              }}
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                style={{
+                  position: 'absolute', right: '10px',
+                  background: 'transparent', border: 'none',
+                  fontSize: '1rem', color: '#b5651d', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: '24px', height: '24px', borderRadius: '50%',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = '#c1440e')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = '#b5651d')}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          <select
+            value={filterDaerah}
+            onChange={(e) => setFilterDaerah(e.target.value)}
+            style={{
+              padding: '0.5rem 2.5rem 0.5rem 1.2rem',
+              border: '1px solid rgba(224, 201, 166, 0.5)', borderRadius: '20px',
+              background: 'rgba(255, 250, 244, 0.7) url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23b5651d\' d=\'M6 8L1 3h10z\'/%3E%3C/svg%3E") no-repeat right 1rem center',
+              fontSize: '0.9rem', color: '#3b1f0e',
+              fontFamily: 'inherit', cursor: 'pointer',
+              appearance: 'none' as any, backdropFilter: 'blur(4px)',
+              transition: 'background 0.3s, border-color 0.3s', minWidth: '160px'
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.background = '#fffaf4 url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23b5651d\' d=\'M6 8L1 3h10z\'/%3E%3C/svg%3E") no-repeat right 1rem center';
+              e.currentTarget.style.borderColor = '#c1440e';
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 250, 244, 0.7) url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23b5651d\' d=\'M6 8L1 3h10z\'/%3E%3C/svg%3E") no-repeat right 1rem center';
+              e.currentTarget.style.borderColor = 'rgba(224, 201, 166, 0.5)';
+            }}
+          >
+            <option value="">Semua Daerah</option>
+            {[...daerahList].sort((a, b) => a.localeCompare(b)).map((d) => (
+              <option key={d} value={d}>{toTitleCase(d)}</option>
+            ))}
+          </select>
+        </div>
+
         {/* Menu */}
         <span
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
@@ -148,41 +219,10 @@ export default function HomePage() {
         />
       )}
 
-      {/* Filter Bar */}
-      <section style={{ padding: '2rem 2rem 2rem', maxWidth: '900px', margin: '0 auto', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-        <input
-          type="text"
-          placeholder="Cari restoran..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{
-            flex: 1, minWidth: '200px', padding: '0.65rem 1rem',
-            border: '1px solid #e0c9a6', borderRadius: '8px',
-            background: '#fffaf4', fontSize: '0.95rem', color: '#3b1f0e',
-            outline: 'none', fontFamily: 'inherit'
-          }}
-        />
-        <select
-          value={filterDaerah}
-          onChange={(e) => setFilterDaerah(e.target.value)}
-          style={{
-            padding: '0.65rem 3rem 0.65rem 1rem',
-            border: '1px solid #e0c9a6', borderRadius: '8px',
-            background: '#fffaf4 url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23b5651d\' d=\'M6 8L1 3h10z\'/%3E%3C/svg%3E") no-repeat right 1rem center',
-            fontSize: '0.95rem', color: '#3b1f0e',
-            fontFamily: 'inherit', cursor: 'pointer',
-            appearance: 'none' as any,
-          }}
-        >
-          <option value="">Semua Daerah</option>
-          {[...daerahList].sort((a, b) => a.localeCompare(b)).map((d) => (
-            <option key={d} value={d}>{toTitleCase(d)}</option>
-          ))}
-        </select>
-      </section>
+
 
       {/* Cards */}
-      <section style={{ padding: '0 2.5rem 6rem', maxWidth: '1200px', margin: '0 auto' }}>
+      <section style={{ padding: '2rem 2.5rem 6rem', maxWidth: '1200px', margin: '0 auto' }}>
         <h2 style={{ fontSize: '1.3rem', fontWeight: 600, color: '#3b1f0e', marginBottom: '1.5rem' }}>
           Restaurants
         </h2>

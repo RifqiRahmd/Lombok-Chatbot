@@ -45,10 +45,10 @@ export default function BannerSlider({
         padding: '0',       // ← hapus padding
     }}
     >
-    <div
+      <div
         style={{
         position: 'relative',
-        height: '380px',        // ← lebih tinggi biar impactful
+        height: '440px',        // ← lebih tinggi biar impactful
         borderRadius: '0',      // ← hapus border radius
         overflow: 'hidden',
         cursor: 'pointer',
