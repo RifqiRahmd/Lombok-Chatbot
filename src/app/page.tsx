@@ -62,6 +62,7 @@ export default function HomePage() {
 
       {/* Navbar */}
       <nav
+        className="nav-container"
         style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -81,6 +82,7 @@ export default function HomePage() {
       >
         {/* Logo */}    
         <span
+          className="nav-logo"
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.7')}
           onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
@@ -100,9 +102,9 @@ export default function HomePage() {
         </span>
 
         {/* Filter & Search */}
-        <div style={{ display: 'flex', gap: '0.8rem', flex: 1, maxWidth: '750px', margin: '0 2rem' }}>
+        <div className="nav-search-container" style={{ display: 'flex', gap: '0.8rem', flex: 1, maxWidth: '750px', margin: '0 2rem' }}>
           
-          <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+          <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center', width: '100%' }}>
             <input
               type="text"
               placeholder="Cari restoran..."
@@ -172,6 +174,7 @@ export default function HomePage() {
 
         {/* Menu */}
         <span
+          className="nav-menu"
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           onMouseEnter={(e) => {
             e.currentTarget.style.opacity = '0.7';
@@ -196,7 +199,7 @@ export default function HomePage() {
 
 
       {/* Hero */}
-      <section style={{
+      <section className="hero-section" style={{
         textAlign: 'center', padding: '5rem 2rem 2rem',
         background: 'linear-gradient(135deg, #c1440e22 0%, #d4a84b22 60%, #fdf6ee 100%)',                
       }}>
@@ -404,6 +407,33 @@ export default function HomePage() {
         @keyframes popIn {
           from { opacity: 0; transform: scale(0.95); }
           to { opacity: 1; transform: scale(1); }
+        }
+
+        /* Responsive Navbar */
+        @media (max-width: 768px) {
+          .nav-container {
+            flex-wrap: wrap !important;
+            padding: 1rem 1.5rem !important;
+            gap: 1rem !important;
+          }
+          .nav-logo {
+            order: 1;
+          }
+          .nav-menu {
+            order: 2;
+            margin-left: auto;
+          }
+          .nav-search-container {
+            order: 3;
+            width: 100% !important;
+            margin: 0 !important;
+            flex-direction: column !important;
+            max-width: none !important;
+            flex: none !important;
+          }
+          .hero-section {
+            padding-top: 11rem !important;
+          }
         }
       `}</style>
     </main>

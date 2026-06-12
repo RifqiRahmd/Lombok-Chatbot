@@ -20,7 +20,7 @@ const supabase = createClient(
 // Update this if you add/remove columns in your table.
 // ===================================================
 const HARDCODED_SCHEMA = `Tables:
-- restoran (id, nama_resto, daerah, alamat, rating, jumlah_review, harga, tipe_makanan, jenis_tempat, latitude, longitude)
+- restoran (id: uuid, nama_resto: text, daerah: text, alamat: text, rating: float, jumlah_review: int, harga: text, tipe_makanan: text, jenis_tempat: text, latitude: float, longitude: float)
 `;
 
 let cachedSchema: string | null = null;
@@ -159,11 +159,11 @@ function normalizeQuestion(text: string): { normalized: string; hargaFilter: str
   // Urutan cek: mahal → sedang → murah (dari paling spesifik)
   let hargaFilter = "";
   if (/\bmahal\b/i.test(normalized)) {
-    hargaFilter = "AND harga = '$$$'";
+    hargaFilter = "harga = '$$$'";
   } else if (/\bsedang\b/i.test(normalized)) {
-    hargaFilter = "AND harga = '$$'";
+    hargaFilter = "harga = '$$'";
   } else if (/\bmurah\b/i.test(normalized)) {
-    hargaFilter = "AND harga = '$'";
+    hargaFilter = "harga = '$'";
   }
 
   // Hapus kata harga dari kalimat supaya LLM tidak salah interpretasi
@@ -372,12 +372,11 @@ Rules:
 - If user asks for the count/number of restaurants, ALWAYS include 'daerah' in SELECT: SELECT daerah, COUNT(id) as jumlah_restoran FROM restoran [with optional WHERE clause] GROUP BY daerah ORDER BY daerah ASC
 - For tipe_makanan filters, use: tipe_makanan LIKE '%value%'
 - If user asks about "pantai" (beach) or similar locations, use: alamat LIKE '%pantai%'
-- If user mentions "lombok" or "pulau lombok", do NOT add WHERE daerah LIKE '%lombok%'
+- "lombok" is the general location. If user mentions "lombok" or "pulau lombok", ignore it completely. Do NOT add ANY filters for it (e.g. do NOT use daerah LIKE '%lombok%' or alamat LIKE '%lombok%').
 
 ${hargaFilter
-  ? `CRITICAL PRICE FILTER — you MUST include this exactly in the WHERE clause, do NOT change or reinterpret it:
-  ${hargaFilter}`
-  : "No price filter needed."}
+  ? `- CRITICAL PRICE FILTER: You MUST include exactly "${hargaFilter}" in the WHERE clause.`
+  : ""}
 
 Database schema:
 ${schema}
