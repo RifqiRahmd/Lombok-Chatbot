@@ -237,7 +237,7 @@ export async function POST(request: Request) {
     // ===================================================
     // STEP 1: TYPO CORRECTION
     // ===================================================
-    const questionLower = question.toLowerCase().trim();
+    const questionLower = question.toLowerCase().trim().replace(/[?!.,;]/g, " ");
 
     // Pre-fix "gil" → "gili" sebelum TYPO_MAP (hardcoded supaya pasti jalan)
     const preFixed = questionLower
@@ -371,6 +371,7 @@ Rules:
 - If user asks for a list of regions ("daerah"), use: SELECT DISTINCT daerah FROM restoran ORDER BY daerah ASC
 - If user asks for the count/number of restaurants, ALWAYS include 'daerah' in SELECT: SELECT daerah, COUNT(id) as jumlah_restoran FROM restoran [with optional WHERE clause] GROUP BY daerah ORDER BY daerah ASC
 - For tipe_makanan filters, use: tipe_makanan LIKE '%value%'
+- If user asks about "seafood", use: tipe_makanan LIKE '%makanan laut%'
 - If user asks about "pantai" (beach) or similar locations, use: alamat LIKE '%pantai%'
 - "lombok" is the general location. If user mentions "lombok" or "pulau lombok", ignore it completely. Do NOT add ANY filters for it (e.g. do NOT use daerah LIKE '%lombok%' or alamat LIKE '%lombok%').
 

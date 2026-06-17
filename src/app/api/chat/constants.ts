@@ -90,7 +90,7 @@ export const KNOWN_WORDS: string[] = [
   "restoran", "rekomendasi", "murah", "mahal", "sedang", "rating",
   "harga", "daerah", "laut", "makan", "cafe", "warung", "kuliner",
   "menu", "tempat", "lombok", "oleh", "pusat", "makanan", "minuman",
-  "sushi", "pizza", "burger",
+  "sushi", "pizza", "burger", "seafood",
   // semua daerah yang tersedia di database
   "sengkol", "bonjeruk", "praya", "tanjung", "suranadi", "tetebatu",
   "masbagik", "kuta", "mataram", "senggigi", "senaru", "sandik",
