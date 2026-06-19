@@ -263,7 +263,7 @@ export default function HomePage() {
 
 
       {/* Cards */}
-      <section style={{ padding: '2rem 2.5rem 6rem', width: '100%' }}>
+      <section style={{ padding: '2rem 2.5rem 3rem', width: '100%' }}>
         <h2 style={{ fontSize: '1.6rem', fontWeight: 700, color: '#3b1f0e', marginBottom: '2.5rem', textAlign: 'center' }}>
           Restaurants
         </h2>
