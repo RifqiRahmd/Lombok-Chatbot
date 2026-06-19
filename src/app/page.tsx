@@ -10,6 +10,7 @@ type Restoran = {
   gambar: string;
   tentang: string;
   daerah: string;
+  harga?: string;
 };
 
 export default function HomePage() {
@@ -17,6 +18,8 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterDaerah, setFilterDaerah] = useState('');
+  const [filterHarga, setFilterHarga] = useState('');
+  const [visibleCount, setVisibleCount] = useState(36);
   const [selected, setSelected] = useState<Restoran | null>(null);
 
   const toTitleCase = (text: string) => {
@@ -50,7 +53,8 @@ export default function HomePage() {
   const filtered = restaurants.filter((r) => {
     const matchSearch = r.nama_resto.toLowerCase().includes(search.toLowerCase());
     const matchDaerah = filterDaerah ? r.daerah === filterDaerah : true;
-    return matchSearch && matchDaerah;
+    const matchHarga = filterHarga ? r.harga === filterHarga : true;
+    return matchSearch && matchDaerah && matchHarga;
   });
 
   const scrollToTop = () => {
@@ -102,9 +106,9 @@ export default function HomePage() {
         </span>
 
         {/* Filter & Search */}
-        <div className="nav-search-container" style={{ display: 'flex', gap: '0.8rem', flex: 1, maxWidth: '750px', margin: '0 2rem' }}>
+        <div className="nav-search-container" style={{ display: 'flex', gap: '0.8rem', flex: 1, maxWidth: '850px', margin: '0 2rem' }}>
           
-          <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center', width: '100%' }}>
+          <div className="search-bar-wrapper" style={{ position: 'relative', flex: '0.8', display: 'flex', alignItems: 'center' }}>
             <input
               type="text"
               placeholder="Cari restoran..."
@@ -144,32 +148,63 @@ export default function HomePage() {
             )}
           </div>
 
-          <select
-            value={filterDaerah}
-            onChange={(e) => setFilterDaerah(e.target.value)}
-            style={{
-              padding: '0.5rem 2.5rem 0.5rem 1.2rem',
-              border: '1px solid rgba(224, 201, 166, 0.5)', borderRadius: '20px',
-              background: 'rgba(255, 250, 244, 0.7) url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23b5651d\' d=\'M6 8L1 3h10z\'/%3E%3C/svg%3E") no-repeat right 1rem center',
-              fontSize: '0.9rem', color: '#3b1f0e',
-              fontFamily: 'inherit', cursor: 'pointer',
-              appearance: 'none' as any, backdropFilter: 'blur(4px)',
-              transition: 'background 0.3s, border-color 0.3s', minWidth: '160px'
-            }}
-            onFocus={(e) => {
-              e.currentTarget.style.background = '#fffaf4 url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23b5651d\' d=\'M6 8L1 3h10z\'/%3E%3C/svg%3E") no-repeat right 1rem center';
-              e.currentTarget.style.borderColor = '#c1440e';
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.background = 'rgba(255, 250, 244, 0.7) url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23b5651d\' d=\'M6 8L1 3h10z\'/%3E%3C/svg%3E") no-repeat right 1rem center';
-              e.currentTarget.style.borderColor = 'rgba(224, 201, 166, 0.5)';
-            }}
-          >
-            <option value="">Semua Daerah</option>
-            {[...daerahList].sort((a, b) => a.localeCompare(b)).map((d) => (
-              <option key={d} value={d}>{toTitleCase(d)}</option>
-            ))}
-          </select>
+          <div className="filters-wrapper" style={{ display: 'flex', gap: '0.8rem', flex: '1.2' }}>
+            <select
+              value={filterDaerah}
+              onChange={(e) => setFilterDaerah(e.target.value)}
+              style={{
+                flex: 1,
+                padding: '0.5rem 2.5rem 0.5rem 1.2rem',
+                border: '1px solid rgba(224, 201, 166, 0.5)', borderRadius: '20px',
+                background: 'rgba(255, 250, 244, 0.7) url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23b5651d\' d=\'M6 8L1 3h10z\'/%3E%3C/svg%3E") no-repeat right 1rem center',
+                fontSize: '0.9rem', color: '#3b1f0e',
+                fontFamily: 'inherit', cursor: 'pointer',
+                appearance: 'none' as any, backdropFilter: 'blur(4px)',
+                transition: 'background 0.3s, border-color 0.3s', minWidth: '130px'
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.background = '#fffaf4 url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23b5651d\' d=\'M6 8L1 3h10z\'/%3E%3C/svg%3E") no-repeat right 1rem center';
+                e.currentTarget.style.borderColor = '#c1440e';
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 250, 244, 0.7) url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23b5651d\' d=\'M6 8L1 3h10z\'/%3E%3C/svg%3E") no-repeat right 1rem center';
+                e.currentTarget.style.borderColor = 'rgba(224, 201, 166, 0.5)';
+              }}
+            >
+              <option value="">Semua Daerah</option>
+              {[...daerahList].sort((a, b) => a.localeCompare(b)).map((d) => (
+                <option key={d} value={d}>{toTitleCase(d)}</option>
+              ))}
+            </select>
+
+            <select
+              value={filterHarga}
+              onChange={(e) => setFilterHarga(e.target.value)}
+              style={{
+                flex: 1,
+                padding: '0.5rem 2.5rem 0.5rem 1.2rem',
+                border: '1px solid rgba(224, 201, 166, 0.5)', borderRadius: '20px',
+                background: 'rgba(255, 250, 244, 0.7) url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23b5651d\' d=\'M6 8L1 3h10z\'/%3E%3C/svg%3E") no-repeat right 1rem center',
+                fontSize: '0.9rem', color: '#3b1f0e',
+                fontFamily: 'inherit', cursor: 'pointer',
+                appearance: 'none' as any, backdropFilter: 'blur(4px)',
+                transition: 'background 0.3s, border-color 0.3s', minWidth: '130px'
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.background = '#fffaf4 url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23b5651d\' d=\'M6 8L1 3h10z\'/%3E%3C/svg%3E") no-repeat right 1rem center';
+                e.currentTarget.style.borderColor = '#c1440e';
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 250, 244, 0.7) url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23b5651d\' d=\'M6 8L1 3h10z\'/%3E%3C/svg%3E") no-repeat right 1rem center';
+                e.currentTarget.style.borderColor = 'rgba(224, 201, 166, 0.5)';
+              }}
+            >
+              <option value="">Semua Harga</option>
+              <option value="$">$ (Murah)</option>
+              <option value="$$">$$ (Sedang)</option>
+              <option value="$$$">$$$ (Mahal)</option>
+            </select>
+          </div>
         </div>
 
         {/* Menu */}
@@ -209,8 +244,11 @@ export default function HomePage() {
         <h1 style={{ fontSize: 'clamp(2.2rem, 5vw, 3.8rem)', fontWeight: 700, color: '#3b1f0e', lineHeight: 1.15, margin: '0 auto 1.2rem', maxWidth: '700px' }}>
           Discover The Culinary of Lombok
         </h1>
-        <p style={{ color: '#7a4f2e', fontSize: '1.05rem' }}>
-          Temukan beberapa rekomendasi restoran di Pulau Lombok, Indonesia.          
+        <p style={{ color: '#7a4f2e', fontSize: '1.05rem', maxWidth: '800px', margin: '0 auto', lineHeight: '1.6' }}>
+          Temukan rekomendasi restoran terbaik di Pulau Lombok, Indonesia. 
+        </p>
+        <p style={{ color: '#7a4f2e', fontSize: '1.05rem', maxWidth: '800px', margin: '0 auto', lineHeight: '1.6' }}>
+          Data yang disajikan merupakan kombinasi dari <strong>TripAdvisor</strong> dan <strong>Google Maps</strong>.          
         </p>
       </section>
 
@@ -225,8 +263,8 @@ export default function HomePage() {
 
 
       {/* Cards */}
-      <section style={{ padding: '2rem 2.5rem 6rem', maxWidth: '1200px', margin: '0 auto' }}>
-        <h2 style={{ fontSize: '1.3rem', fontWeight: 600, color: '#3b1f0e', marginBottom: '1.5rem' }}>
+      <section style={{ padding: '2rem 2.5rem 6rem', width: '100%' }}>
+        <h2 style={{ fontSize: '1.6rem', fontWeight: 700, color: '#3b1f0e', marginBottom: '2.5rem', textAlign: 'center' }}>
           Restaurants
         </h2>
 
@@ -235,53 +273,96 @@ export default function HomePage() {
         ) : filtered.length === 0 ? (
           <p style={{ color: '#9c8a6e', textAlign: 'center', padding: '3rem' }}>Tidak ada restoran ditemukan.</p>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
-            {filtered.map((resto) => (
-              <div
-                key={resto.nama_resto}
-                onClick={() => setSelected(resto)}
-                style={{
-                  background: '#fffaf4', borderRadius: '12px', overflow: 'hidden',
-                  border: '1px solid #e8d5b7', transition: 'transform 0.2s, box-shadow 0.2s',
-                  cursor: 'pointer',
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.transform = 'translateY(-4px)';
-                  e.currentTarget.style.boxShadow = '0 12px 32px rgba(59,31,14,0.12)';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-              >
-                <div style={{ position: 'relative', width: '100%', height: '200px', background: '#f0e6d3' }}>
-                  {resto.gambar && (
-                    <Image
-                      src={`/ASSET/${encodeURIComponent(resto.gambar)}`}
-                      alt={resto.nama_resto}
-                      fill
-                      style={{ objectFit: 'cover' }}
-                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                    />
-                  )}
+          <>
+            <div className="resto-grid" style={{ display: 'grid', gap: '1.2rem' }}>
+              {filtered.slice(0, visibleCount).map((resto) => (
+                <div
+                  key={resto.nama_resto}
+                  onClick={() => setSelected(resto)}
+                  style={{
+                    background: '#fffaf4', borderRadius: '12px', overflow: 'hidden',
+                    border: '1px solid #e8d5b7', transition: 'transform 0.2s, box-shadow 0.2s',
+                    cursor: 'pointer', display: 'flex', flexDirection: 'column'
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.transform = 'translateY(-4px)';
+                    e.currentTarget.style.boxShadow = '0 12px 32px rgba(59,31,14,0.12)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
+                  <div style={{ position: 'relative', width: '100%', height: '200px', background: '#f0e6d3' }}>
+                    {resto.gambar && (
+                      <Image
+                        src={`/ASSET/${encodeURIComponent(resto.gambar)}`}
+                        alt={resto.nama_resto}
+                        fill
+                        style={{ objectFit: 'cover' }}
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    )}
+                  </div>
+                  <div style={{ padding: '1rem 1.2rem 1.2rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: '#3b1f0e', margin: '0 0 0.5rem' }}>
+                      {toTitleCase(resto.nama_resto)}
+                    </h3>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: 'auto' }}>
+                      {resto.daerah && (
+                        <span style={{
+                          display: 'inline-block', fontSize: '0.72rem', letterSpacing: '0.1em',
+                          textTransform: 'uppercase', color: '#9c5a1d',
+                          background: '#fdebd0', padding: '3px 8px', borderRadius: '4px'
+                        }}>
+                          {toTitleCase(resto.daerah)}
+                        </span>
+                      )}
+                      {resto.harga && (
+                        <span style={{
+                          display: 'inline-block', fontSize: '0.72rem', letterSpacing: '0.1em',
+                          color: '#2e7d32', fontWeight: 600,
+                          background: '#e8f5e9', padding: '3px 8px', borderRadius: '4px'
+                        }}>
+                          {resto.harga}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div style={{ padding: '1rem 1.2rem 1.2rem' }}>
-                  <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: '#3b1f0e', margin: '0 0 0.3rem' }}>
-                    {toTitleCase(resto.nama_resto)}
-                  </h3>
-                  {resto.daerah && (
-                    <span style={{
-                      display: 'inline-block', fontSize: '0.72rem', letterSpacing: '0.1em',
-                      textTransform: 'uppercase', color: '#9c5a1d',
-                      background: '#fdebd0', padding: '2px 8px', borderRadius: '4px'
-                    }}>
-                      {toTitleCase(resto.daerah)}
-                    </span>
-                  )}
-                </div>
+              ))}
+            </div>
+            
+            {visibleCount < filtered.length && (
+              <div style={{ textAlign: 'center', marginTop: '3rem' }}>
+                <button
+                  onClick={() => setVisibleCount((prev) => prev + 36)}
+                  style={{
+                    padding: '0.8rem 2rem',
+                    background: 'linear-gradient(135deg, #c1440e, #d4a84b)',
+                    color: '#fffaf4',
+                    border: 'none',
+                    borderRadius: '30px',
+                    fontSize: '1rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'transform 0.2s, box-shadow 0.2s, opacity 0.2s',
+                    boxShadow: '0 4px 15px rgba(193, 68, 14, 0.2)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(193, 68, 14, 0.3)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 4px 15px rgba(193, 68, 14, 0.2)';
+                  }}
+                >
+                  Tampilkan Lebih Banyak
+                </button>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </section>
 
@@ -395,6 +476,28 @@ export default function HomePage() {
         </div>
       )}
 
+      {/* Footer */}
+      <footer style={{
+        background: '#3b1f0e',
+        color: '#f0e6d3',
+        padding: '4rem 2rem 3rem',
+        textAlign: 'center',
+        marginTop: 'auto',
+        position: 'relative',
+        zIndex: 10
+      }}>
+        <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+          <h3 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '0.1em', marginBottom: '1rem', color: '#d4a84b' }}>LOMBOK CULINARY</h3>
+          <p style={{ fontSize: '0.95rem', color: '#e8d5b7', marginBottom: '2rem', lineHeight: '1.6' }}>
+            Temukan rekomendasi restoran terbaik di Lombok. Nikmati berbagai kuliner lezat mulai dari makanan tradisional hingga hidangan internasional.<br />
+            <span style={{ fontSize: '0.85rem', opacity: 0.8, display: 'block', marginTop: '0.5rem' }}>*Data restoran yang ditampilkan bersumber dari kombinasi TripAdvisor dan Google Maps.</span>
+          </p>
+          <div style={{ borderTop: '1px solid rgba(232, 213, 183, 0.2)', paddingTop: '1.5rem', fontSize: '0.85rem', color: '#9c8a6e' }}>
+            &copy; {new Date().getFullYear()} Resto Chatbot Lombok. All rights reserved.
+          </div>
+        </div>
+      </footer>
+
       <Chatbot />
 
       <style jsx global>{`
@@ -403,14 +506,34 @@ export default function HomePage() {
         body { 
           background: linear-gradient(160deg, #fdf6ee 0%, #faf0e4 50%, #f5e6d3 100%);
           min-height: 100vh;
+          display: flex;
+          flex-direction: column;
+        }
+        main {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
         }
         @keyframes popIn {
           from { opacity: 0; transform: scale(0.95); }
           to { opacity: 1; transform: scale(1); }
         }
 
+        /* Grid Layout */
+        .resto-grid {
+          grid-template-columns: repeat(3, 1fr);
+        }
+        @media (max-width: 992px) {
+          .resto-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+
         /* Responsive Navbar */
         @media (max-width: 768px) {
+          .resto-grid {
+            grid-template-columns: 1fr;
+          }
           .nav-container {
             flex-wrap: wrap !important;
             padding: 1rem 1.5rem !important;
@@ -430,6 +553,17 @@ export default function HomePage() {
             flex-direction: column !important;
             max-width: none !important;
             flex: none !important;
+          }
+          .search-bar-wrapper, .filters-wrapper {
+            width: 100% !important;
+            flex: none !important;
+          }
+          .filters-wrapper {
+            flex-direction: row !important;
+            flex-wrap: wrap;
+          }
+          .filters-wrapper select {
+            flex: 1 1 120px !important;
           }
           .hero-section {
             padding-top: 11rem !important;

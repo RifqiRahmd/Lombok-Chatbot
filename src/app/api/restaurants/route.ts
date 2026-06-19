@@ -8,7 +8,7 @@ export async function GET() {
   try {
     const { data, error } = await supabase
       .from('restoran')
-      .select('nama_resto, gambar, tentang, daerah')
+      .select('nama_resto, gambar, tentang, daerah, harga')
       .order('id');
 
     if (error) throw error;
