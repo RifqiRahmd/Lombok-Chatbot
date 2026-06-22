@@ -184,9 +184,23 @@ function normalizeQuestion(text: string): { normalized: string; hargaFilter: str
 // SQL SAFETY CHECK — blokir query berbahaya dari LLM
 // ===================================================
 function isSafeQuery(sql: string): boolean {
+  const sqlUpper = sql.toUpperCase();
+  
+  // 1. Pastikan tidak ada perintah modifikasi data atau akses metadata sistem
   const forbidden =
-    /\b(drop|delete|update|insert|alter|truncate|create|grant|revoke|exec|execute|pg_|information_schema)\b/i;
-  return !forbidden.test(sql);
+    /\b(DROP|DELETE|UPDATE|INSERT|ALTER|TRUNCATE|CREATE|GRANT|REVOKE|EXEC|EXECUTE|PG_|INFORMATION_SCHEMA)\b/i;
+  if (forbidden.test(sqlUpper)) return false;
+
+  // 2. Wajib diawali dengan SELECT (mengabaikan spasi di awal)
+  if (!/^\s*SELECT\b/i.test(sql)) return false;
+
+  // 3. Wajib mengambil data HANYA dari tabel 'restoran'
+  if (!/\bFROM\s+restoran\b/i.test(sql)) return false;
+
+  // 4. Blokir injeksi multi-query menggunakan titik koma (;)
+  if (sql.includes(";")) return false;
+
+  return true;
 }
 
 // ===================================================
@@ -225,6 +239,15 @@ export async function POST(request: Request) {
 
     if (!question) {
       return NextResponse.json({ error: "question is required" }, { status: 400 });
+    }
+
+    // Cek apakah user mencoba memasukkan sintaks SQL secara langsung
+    if (/\b(SELECT|FROM|WHERE|INSERT|UPDATE|DELETE)\b/i.test(question)) {
+      return NextResponse.json({
+        sql: "",
+        result: [],
+        answer: "Tolong gunakan bahasa sehari-hari yaa, jangan pakai perintah SQL! 😊",
+      });
     }
 
     if (!GROQ_API_KEY) {
