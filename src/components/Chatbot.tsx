@@ -85,7 +85,7 @@ export default function Chatbot() {
           role: "assistant",
           content: data.answer || "😔 Maaf, aku belum nemuin yang cocok.\nCoba pilih ini ya 👇",
           data: isEmpty
-            ? suggestions.map((s) => ({ suggestion: s }))
+            ? suggestions.map((s: string) => ({ suggestion: s }))
             : data.result || [],
           type: isEmpty ? "suggestion" : data.type,
         },
