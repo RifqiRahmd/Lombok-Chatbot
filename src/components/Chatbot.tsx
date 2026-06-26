@@ -61,15 +61,23 @@ export default function Chatbot() {
     setLoading(true);
 
     try {
+      // Dapatkan pesan user sebelumnya sebagai memori konteks
+      // Abaikan pesan pendek/kelanjutan ("lainnya", "terdekat") agar history selalu menyimpan kueri utama
+      const userMessages = messages.filter((m) => m.role === "user" && !/^(lainn?ya|lagi|yang lain|ada lagi|sini|terdekat|sekitar|tengah kota|pusat kota|pantai)$/i.test(m.content.trim()));
+      const lastUserMsg = userMessages.length > 0 ? userMessages[userMessages.length - 1].content : "";
+
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: text }),
+        body: JSON.stringify({ 
+          question: text,
+          history: lastUserMsg
+        }),
       });
 
       const data = await res.json();
       const isEmpty = !data.result || data.result.length === 0;
-      const suggestions = getRandomSuggestions();
+      const suggestions = data.suggestions || getRandomSuggestions();
 
       setMessages((prev) => [
         ...prev,
@@ -319,7 +327,36 @@ export default function Chatbot() {
             ))}
 
             {loading && (
-              <div style={{ fontSize: 13, color: "#b5651d" }}>🤖 sedang mencari...</div>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ display: "flex", justifyContent: "flex-start" }}>
+                  <div style={{
+                    background: "#fffaf4",
+                    padding: "12px 16px",
+                    borderRadius: 14,
+                    border: "1px solid #e8d5b7",
+                    boxShadow: "0 2px 8px rgba(59,31,14,0.07)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4
+                  }}>
+                    <style>{`
+                      @keyframes typingBounce {
+                        0%, 80%, 100% { transform: scale(0); opacity: 0.5; }
+                        40% { transform: scale(1); opacity: 1; }
+                      }
+                      .typing-dot {
+                        width: 6px; height: 6px; background-color: #c1440e; border-radius: 50%;
+                        animation: typingBounce 1.4s infinite ease-in-out both;
+                      }
+                      .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+                      .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+                    `}</style>
+                    <div className="typing-dot"></div>
+                    <div className="typing-dot"></div>
+                    <div className="typing-dot"></div>
+                  </div>
+                </div>
+              </div>
             )}
             <div ref={messagesEndRef} />
           </div>

@@ -98,6 +98,12 @@ function similarity(x: string, y: string): number {
 function correctTypos(text: string): string {
   let corrected = text;
 
+  // Pass 0: Pisahkan kata kunci tempat yang tanpa sengaja tergabung (contoh: "restoranpokemu" -> "restoran pokemu")
+  corrected = corrected.replace(/\b(restoran|resto|cafe|kafe|warung|pantai|hotel|rm)([a-z]{2,})\b/gi, (match, p1, p2) => {
+    if (match.toLowerCase() === "restoran") return match; // Cegah kata 'restoran' terpecah jadi 'resto ran'
+    return `${p1} ${p2}`;
+  });
+
   // Pass 1a: multi-kata dulu (pakai includes biasa, bukan \b)
   // karena \b tidak bekerja untuk frasa multi-kata dengan spasi
   const multiWordEntries = Object.entries(TYPO_MAP).filter(([k]) => k.includes(" "));
@@ -235,7 +241,23 @@ async function callGroq(prompt: string): Promise<string> {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const question: string = (body?.question ?? "").trim();
+    let question: string = (body?.question ?? "").trim();
+    const history: string = (body?.history ?? "").trim();
+
+    // MEMORY INTEGRATION (Ingatan Kontekstual)
+    // Cek apakah history benar-benar ambigu (tidak memiliki nama daerah yang spesifik)
+    const historyHasRegion = /\b(mataram|senggigi|kuta|gili|praya|selong|tanjung|mandalika|narmada|lombok|pink|nipah|tanjung aan|selong belanak|ampenan|klui)\b/i.test(history);
+
+    // Jika pertanyaan sebelumnya ambigu spasial, dan jawaban saat ini pendek (kemungkinan menjawab nama kota)
+    if (history && !historyHasRegion && /\b(sini|terdekat|sekitar|tengah kota|pusat kota|pantai)\b/i.test(history) && question.split(" ").length <= 3) {
+      console.log(`🧠 [MEMORY] Menyambungkan ingatan (Spasial): "${history}" + "${question}"`);
+      question = history + " di daerah " + question;
+    }
+    // Jika user meminta opsi "lainnya" atau "lagi"
+    else if (history && /\b(lainn?ya|lagi|yang lain|ada lagi)\b/i.test(question) && question.split(" ").length <= 4) {
+      console.log(`🧠 [MEMORY] Menyambungkan ingatan (Lainnya): "${history}" + " " + "${question}"`);
+      question = history + " " + question;
+    }
 
     if (!question) {
       return NextResponse.json({ error: "question is required" }, { status: 400 });
@@ -243,11 +265,66 @@ export async function POST(request: Request) {
 
     // Cek apakah user mencoba memasukkan sintaks SQL secara langsung
     if (/\b(SELECT|FROM|WHERE|INSERT|UPDATE|DELETE)\b/i.test(question)) {
+      console.log("\n=============================================");
+      console.log("🤖 [RELEVANCY ANALYZER]");
+      console.log("Pertanyaan Asli   :", question);
+      console.log("Evaluasi Keamanan : ❌ GAGAL (Terdeteksi Keyword SQL)");
+      console.log("Status Akhir      : ❌ UNRELATED (Bahaya)");
+      console.log("Alasan            : Input diblokir karena mencoba melakukan injeksi SQL mentah.");
+      console.log("FINAL SQL         : (Dibatalkan)");
+      console.log("=============================================\n");
+
       return NextResponse.json({
         sql: "",
         result: [],
         answer: "Tolong gunakan bahasa sehari-hari yaa, jangan pakai perintah SQL! 😊",
       });
+    }
+
+    // Cek informasi spasial ambigu (lokasi relatif tanpa menyebut daerah)
+    if (/\b(sini|terdekat|sekitar|tengah kota|pusat kota)\b/i.test(question)) {
+      const hasRegion = /\b(mataram|senggigi|kuta|gili|praya|selong|tanjung|mandalika|narmada|lombok)\b/i.test(question);
+      if (!hasRegion) {
+        console.log("\n=============================================");
+        console.log("🤖 [RELEVANCY ANALYZER]");
+        console.log("Pertanyaan Asli   :", question);
+        console.log("Evaluasi Keamanan : ✅ Lolos");
+        console.log("Evaluasi Spasial  : ❌ GAGAL (Lokasi Kota Ambigu)");
+        console.log("Status Akhir      : ⚠️ BLOCKED (Butuh Klarifikasi)");
+        console.log("Alasan            : User menggunakan kata relatif tanpa nama daerah yang jelas.");
+        console.log("FINAL SQL         : (Menunggu jawaban user)");
+        console.log("=============================================\n");
+
+        return NextResponse.json({
+          sql: "",
+          result: [],
+          answer: "Di kota atau daerah mana yang kamu maksud? (Misal: ketik 'di Mataram' atau 'sekitar Senggigi') 📍",
+          suggestions: ["Mataram", "Senggigi", "Kuta", "Gili Trawangan"]
+        });
+      }
+    }
+
+    // Cek ambiguitas kata "pantai" (jika user menyebut pantai tanpa nama spesifiknya)
+    if (/\bpantai\b/i.test(question)) {
+      const hasSpecificBeachOrRegion = /\b(kuta|senggigi|pink|nipah|tanjung aan|selong belanak|gili|ampenan|mandalika|klui|mataram|praya|selong|tanjung|narmada)\b/i.test(question);
+      if (!hasSpecificBeachOrRegion) {
+        console.log("\n=============================================");
+        console.log("🤖 [RELEVANCY ANALYZER]");
+        console.log("Pertanyaan Asli   :", question);
+        console.log("Evaluasi Keamanan : ✅ Lolos");
+        console.log("Evaluasi Spasial  : ❌ GAGAL (Pantai Ambigu)");
+        console.log("Status Akhir      : ⚠️ BLOCKED (Butuh Klarifikasi)");
+        console.log("Alasan            : User menggunakan kata 'pantai' secara luas tanpa spesifikasi.");
+        console.log("FINAL SQL         : (Menunggu jawaban user)");
+        console.log("=============================================\n");
+
+        return NextResponse.json({
+          sql: "",
+          result: [],
+          answer: "Lombok memiliki banyak pantai yang indah. Pantai atau daerah mana yang kamu maksud? (Misal: ketik 'Pantai Kuta' atau 'Pantai Senggigi') 🌊",
+          suggestions: ["Pantai Senggigi", "Pantai Kuta", "Pantai Tanjung Aan", "Pantai Nipah"]
+        });
+      }
     }
 
     if (!GROQ_API_KEY) {
@@ -287,21 +364,22 @@ Analisis pesan user berikut: "${question}"
 
 Tentukan intent (tujuan) dari pesan tersebut ke dalam salah satu dari 3 kategori berikut:
 1. "GREETING": Jika user hanya menyapa (contoh: halo, selamat pagi, hai, bro) atau basa-basi ringan (contoh: apa kabar, terima kasih) TANPA mencari restoran.
-2. "RESTAURANT_SEARCH": Jika user mencari restoran, makanan, cafe, harga, rating, daerah, atau lokasi (contoh: rekomendasi makan siang, daerah mana saja, halo cari cafe).
-3. "UNRELATED": Jika user membahas topik di luar pencarian restoran atau sapaan (contoh: jadwal pesawat, berita hari ini, rumus matematika).
+2. "RESTAURANT_SEARCH": Jika user mencari restoran, makanan, cafe, harga, rating, daerah, atau lokasi (contoh: rekomendasi makan siang, daerah mana saja, halo cari cafe). Do NOT reject a query just because you think the region/city is outside Lombok (e.g., "Malaka", "Kuta"). Assume ANY location mentioned is a valid local area in Lombok.
+3. "UNRELATED": Jika user membahas topik di luar pencarian restoran, ATAU menanyakan informasi yang tidak mungkin ada di database rekomendasi (contoh: siapa pemilik restoran, pajak, omset, modal bisnis, lowongan kerja, resep makanan, siapa yang makan) MESKIPUN mengandung kata 'restoran' atau 'makanan'.
 
 Kembalikan HANYA dalam format JSON valid tanpa markdown (tanpa backticks \`\`\`json):
 {
   "intent": "GREETING" | "RESTAURANT_SEARCH" | "UNRELATED",
+  "reason": "Alasan spesifik kenapa intent ini dipilih (misal: 'User menanyakan siapa presiden', atau 'User menyapa', atau 'User mencari daftar restoran')",
   "reply": "Jika intent GREETING atau UNRELATED, tulis balasan ramah & natural di sini dalam bahasa Indonesia. Jika GREETING, balas sapaannya (misal 'Selamat pagi! 🌅'). Jika UNRELATED, tolak dengan sopan dan arahkan untuk mencari restoran. Jika RESTAURANT_SEARCH, kosongkan string ini.",
   "greeting_prefix": "Jika intent RESTAURANT_SEARCH tapi user juga menyisipkan sapaan (misal 'Halo, cari makanan'), tulis sapaan balasannya di sini (misal 'Halo! 👋 '). Jika tidak ada sapaan, kosongkan."
 }
 `;
 
-    let intentData = { intent: "RESTAURANT_SEARCH", reply: "", greeting_prefix: "" };
+    let intentData = { intent: "RESTAURANT_SEARCH", reason: "", reply: "", greeting_prefix: "" };
     try {
       let intentResponse = await callGroq(intentPrompt);
-      intentResponse = intentResponse.replace(/\`\`\`json/gi, "").replace(/\`\`\`/g, "").trim();
+      intentResponse = intentResponse.replace(/```json/gi, "").replace(/```/g, "").trim();
       intentData = JSON.parse(intentResponse);
     } catch (e) {
       console.error("Failed to parse intent JSON, falling back to RESTAURANT_SEARCH", e);
@@ -319,6 +397,17 @@ Kembalikan HANYA dalam format JSON valid tanpa markdown (tanpa backticks \`\`\`j
     }
 
     if (intentData.intent === "UNRELATED") {
+      console.log("\n=============================================");
+      console.log("🤖 [RELEVANCY ANALYZER]");
+      console.log("Pertanyaan Asli   :", question);
+      console.log("Evaluasi Keamanan : ✅ Lolos");
+      console.log("Evaluasi Spasial  : ✅ Lolos");
+      console.log("Analisis Niat (AI): ❌ UNRELATED");
+      console.log("Status Akhir      : ❌ UNRELATED (Luar Konteks)");
+      console.log(`Alasan            : ${intentData.reason || "Klasifikasi awal mendeteksi pertanyaan ini tidak berhubungan dengan restoran."}`);
+      console.log("FINAL SQL         : (Dibatalkan di tahap klasifikasi)");
+      console.log("=============================================\n");
+
       return NextResponse.json({
         success: false,
         warning: true,
@@ -379,7 +468,8 @@ Kembalikan HANYA dalam format JSON valid tanpa markdown (tanpa backticks \`\`\`j
     const sqlPrompt = `
 You are an expert SQL generator for PostgreSQL.
 Return ONLY the raw SQL query. No markdown. No explanation. No comments.
-Always ORDER BY rating DESC (unless user asks for popular/viral).
+Always ORDER BY rating DESC (unless user asks for popular/viral or "lainnya", "lainya").
+- If user asks for "lainnya", "lainya", "lagi", or "yang lain" (meaning "more" or "other options"), you MUST use: ORDER BY RANDOM() LIMIT 5 (Do NOT use rating DESC).
 Always LIMIT 5 if user asks about restaurants.
 Use table name: restoran.
 Do NOT use SELECT *.
@@ -390,13 +480,13 @@ Rules:
 - If user asks about "populer", "terkenal", "hits", or "viral", use: ORDER BY jumlah_review DESC, rating DESC
 - If user asks about "oleh oleh", use: jenis_tempat LIKE '%oleh oleh%'
 - If user asks about "cafe", use: jenis_tempat LIKE '%cafe%'
-- If user mentions a restaurant name, use: nama_resto LIKE '%value%'
-- If user asks for a list of regions ("daerah"), use: SELECT DISTINCT daerah FROM restoran ORDER BY daerah ASC
+- If user mentions a specific name, brand, or an unknown word that is not a region, ASSUME it is a restaurant name and use: nama_resto LIKE '%word%'
 - If user asks for the count/number of restaurants, ALWAYS include 'daerah' in SELECT: SELECT daerah, COUNT(id) as jumlah_restoran FROM restoran [with optional WHERE clause] GROUP BY daerah ORDER BY daerah ASC
 - For tipe_makanan filters, use: tipe_makanan LIKE '%value%'
 - If user asks about "seafood", use: tipe_makanan LIKE '%makanan laut%'
 - If user asks about "pantai" (beach) or similar locations, use: alamat LIKE '%pantai%'
 - "lombok" is the general location. If user mentions "lombok" or "pulau lombok", ignore it completely. Do NOT add ANY filters for it (e.g. do NOT use daerah LIKE '%lombok%' or alamat LIKE '%lombok%').
+- CRITICAL REGION RULE: NEVER include words like "pantai", "desa", "kota", "kabupaten", "kecamatan", or "jalan" inside the 'daerah' filter! For example, if user says "pantai nipah", you MUST use ONLY the core name: daerah LIKE '%nipah%'. Do NOT use daerah LIKE '%pantai nipah%'.
 
 ${hargaFilter
   ? `- CRITICAL PRICE FILTER: You MUST include exactly "${hargaFilter}" in the WHERE clause.`
@@ -413,7 +503,30 @@ SQL:
 
     let query = await callGroq(sqlPrompt);
     query = query.replace(/```sql/gi, "").replace(/```/g, "").trim();
-    console.log("FINAL SQL:", query);
+    
+    // LOG KE TERMINAL UNTUK BUKTI PENGUJI (RELATED / UNRELATED)
+    console.log("\n=============================================");
+    console.log("🤖 [RELEVANCY ANALYZER]");
+    console.log("Pertanyaan Asli   :", question);
+    
+    if (query && isSafeQuery(query)) {
+      console.log("Evaluasi Keamanan : ✅ Lolos");
+      console.log("Evaluasi Spasial  : ✅ Lolos");
+      console.log("Analisis Niat (AI): ✅ RESTAURANT_SEARCH");
+      console.log("Filter SQL Akhir  : ✅ Aman & Tervalidasi");
+      console.log("Status Akhir      : ✅ RELATED (Sesuai Konteks)");
+      console.log(`Alasan            : ${intentData.reason || "LLM mengenali konteks kuliner dan membuat kueri SQL pencarian restoran."}`);
+      console.log("FINAL SQL         :", query);
+    } else {
+      console.log("Evaluasi Keamanan : ✅ Lolos");
+      console.log("Evaluasi Spasial  : ✅ Lolos");
+      console.log("Analisis Niat (AI): ✅ RESTAURANT_SEARCH");
+      console.log("Filter SQL Akhir  : ❌ GAGAL (Kueri Berbahaya / Salah Format)");
+      console.log("Status Akhir      : ❌ UNRELATED (Digugurkan Paksa)");
+      console.log("Alasan            : AI terdeteksi mencoba mengeksekusi kueri berbahaya atau gagal memformat SQL dengan benar.");
+      console.log("FINAL SQL         :", query || "(kosong)");
+    }
+    console.log("=============================================\n");
 
     // ===================================================
     // STEP 8: SAFETY CHECK
@@ -444,7 +557,7 @@ SQL:
         type: "suggestion",
         answer:
           greetingPrefix +
-          "Maaf, belum ada restoran yang sesuai 😊 Mau cari rekomendasi lainnya?",
+          "Aku mengerti maksudmu (Pencarian berhasil diproses ✅), tapi kebetulan data restoran dengan kriteria tersebut belum tersedia di database kami. 😔 Mau coba cari menu atau daerah lain?",
       });
     }
 
