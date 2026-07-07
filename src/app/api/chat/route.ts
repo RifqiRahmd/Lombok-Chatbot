@@ -7,6 +7,10 @@ export const runtime = "nodejs";
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
+const REGEX_REGION = /\b(mataram|senggigi|kuta|gili|praya|selong|tanjung|mandalika|narmada|lombok|pink|nipah|tanjung aan|selong belanak|ampenan|klui)\b/i;
+const REGEX_SPATIAL_AMBIGUITY = /\b(sini|dekat|terdekat|sekitar|tengah kota|pusat kota)\b/i;
+const REGEX_MEMORY_SPATIAL = /\b(sini|dekat|terdekat|sekitar|tengah kota|pusat kota|pinggir kota|pantai)\b/i;
+const REGEX_MEMORY_CONTINUATION = /\b(lainnya|lagi|yang lain|ada lagi)\b/i;
 // ===================================================
 // SUPABASE CLIENT — server-side only (service role key bypasses RLS)
 // ===================================================
@@ -20,7 +24,7 @@ const supabase = createClient(
 // Update this if you add/remove columns in your table.
 // ===================================================
 const HARDCODED_SCHEMA = `Tables:
-- restoran (id: uuid, nama_resto: text, daerah: text, alamat: text, rating: float, jumlah_review: int, harga: text, tipe_makanan: text, jenis_tempat: text, latitude: float, longitude: float)
+- restoran (id: uuid, nama_resto: text, daerah: text, alamat: text, rating: float, jumlah_review: int, harga: text, tipe_makanan: text, jenis_tempat: text, latitude: float, longitude: float, gambar: text)
 `;
 
 let cachedSchema: string | null = null;
@@ -143,7 +147,7 @@ function correctTypos(text: string): string {
 // ===================================================
 // NORMALISASI NEGASI + EXTRACT HARGA FILTER
 // ===================================================
-function normalizeQuestion(text: string): { normalized: string; hargaFilter: string } {
+function normalizeQuestion(text: string): { normalized: string; hargaFilter: string; jenisTempatFilter: string } {
   const negWords = "(tidak|nggak|gak|ga|bukan|tdk|gk)";
   let normalized = text.replace(/\bterlalu\b/gi, "").trim();
 
@@ -172,6 +176,16 @@ function normalizeQuestion(text: string): { normalized: string; hargaFilter: str
     hargaFilter = "harga = '$'";
   }
 
+  // Extract jenis tempat filter
+  let jenisTempatFilter = "";
+  if (/\b(cafe|kafe)\b/i.test(normalized)) {
+    jenisTempatFilter = "jenis_tempat ILIKE '%cafe%'";
+  } else if (/\boleh oleh\b/i.test(normalized)) {
+    jenisTempatFilter = "jenis_tempat ILIKE '%oleh oleh%'";
+  } else if (/\b(restoran|resto)\b/i.test(normalized)) {
+    jenisTempatFilter = "jenis_tempat ILIKE '%restoran%'";
+  }
+
   // Hapus kata harga dari kalimat supaya LLM tidak salah interpretasi
   normalized = normalized
     .replace(/\bmahal\b/gi, "")
@@ -182,8 +196,9 @@ function normalizeQuestion(text: string): { normalized: string; hargaFilter: str
 
   console.log("NORMALIZED  :", normalized);
   console.log("HARGA FILTER:", hargaFilter || "(none)");
+  console.log("JENIS FILTER:", jenisTempatFilter || "(none)");
 
-  return { normalized, hargaFilter };
+  return { normalized, hargaFilter, jenisTempatFilter };
 }
 
 // ===================================================
@@ -242,19 +257,18 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     let question: string = (body?.question ?? "").trim();
-    const history: string = (body?.history ?? "").trim();
+    const history: string = (body?.history ?? "").trim();        
+    const historyHasRegion = REGEX_REGION.test(history);
 
-    // MEMORY INTEGRATION (Ingatan Kontekstual)
-    // Cek apakah history benar-benar ambigu (tidak memiliki nama daerah yang spesifik)
-    const historyHasRegion = /\b(mataram|senggigi|kuta|gili|praya|selong|tanjung|mandalika|narmada|lombok|pink|nipah|tanjung aan|selong belanak|ampenan|klui)\b/i.test(history);
+    const questionHasRegion = REGEX_REGION.test(question);
 
-    // Jika pertanyaan sebelumnya ambigu spasial, dan jawaban saat ini pendek (kemungkinan menjawab nama kota)
-    if (history && !historyHasRegion && /\b(sini|terdekat|sekitar|tengah kota|pusat kota|pantai)\b/i.test(history) && question.split(" ").length <= 3) {
-      console.log(`🧠 [MEMORY] Menyambungkan ingatan (Spasial): "${history}" + "${question}"`);
+    // 1. Backward Spasial: History ambigu, Question menjawab daerah
+    if (history && !historyHasRegion && REGEX_MEMORY_SPATIAL.test(history) && question.split(" ").length <= 5) {
+      console.log(`🧠 [MEMORY] Menyambungkan ingatan (Backward Spasial): "${history}" + "${question}"`);
       question = history + " di daerah " + question;
     }
-    // Jika user meminta opsi "lainnya" atau "lagi"
-    else if (history && /\b(lainn?ya|lagi|yang lain|ada lagi)\b/i.test(question) && question.split(" ").length <= 4) {
+    // 3. Continuation: User meminta opsi "lainnya"
+    else if (history && REGEX_MEMORY_CONTINUATION.test(question) && question.split(" ").length <= 5) {
       console.log(`🧠 [MEMORY] Menyambungkan ingatan (Lainnya): "${history}" + " " + "${question}"`);
       question = history + " " + question;
     }
@@ -282,8 +296,8 @@ export async function POST(request: Request) {
     }
 
     // Cek informasi spasial ambigu (lokasi relatif tanpa menyebut daerah)
-    if (/\b(sini|terdekat|sekitar|tengah kota|pusat kota)\b/i.test(question)) {
-      const hasRegion = /\b(mataram|senggigi|kuta|gili|praya|selong|tanjung|mandalika|narmada|lombok)\b/i.test(question);
+    if (REGEX_SPATIAL_AMBIGUITY.test(question)) {
+      const hasRegion = REGEX_REGION.test(question);
       if (!hasRegion) {
         console.log("\n=============================================");
         console.log("🤖 [RELEVANCY ANALYZER]");
@@ -299,14 +313,15 @@ export async function POST(request: Request) {
           sql: "",
           result: [],
           answer: "Di kota atau daerah mana yang kamu maksud? (Misal: ketik 'di Mataram' atau 'sekitar Senggigi') 📍",
-          suggestions: ["Mataram", "Senggigi", "Kuta", "Gili Trawangan"]
+          suggestions: ["Mataram", "Senggigi", "Kuta", "Gili Trawangan"],
+          contextual_query: question
         });
       }
     }
 
     // Cek ambiguitas kata "pantai" (jika user menyebut pantai tanpa nama spesifiknya)
     if (/\bpantai\b/i.test(question)) {
-      const hasSpecificBeachOrRegion = /\b(kuta|senggigi|pink|nipah|tanjung aan|selong belanak|gili|ampenan|mandalika|klui|mataram|praya|selong|tanjung|narmada)\b/i.test(question);
+      const hasSpecificBeachOrRegion = REGEX_REGION.test(question);
       if (!hasSpecificBeachOrRegion) {
         console.log("\n=============================================");
         console.log("🤖 [RELEVANCY ANALYZER]");
@@ -322,7 +337,8 @@ export async function POST(request: Request) {
           sql: "",
           result: [],
           answer: "Lombok memiliki banyak pantai yang indah. Pantai atau daerah mana yang kamu maksud? (Misal: ketik 'Pantai Kuta' atau 'Pantai Senggigi') 🌊",
-          suggestions: ["Pantai Senggigi", "Pantai Kuta", "Pantai Tanjung Aan", "Pantai Nipah"]
+          suggestions: ["Pantai Senggigi", "Pantai Kuta", "Pantai Tanjung Aan", "Pantai Nipah"],
+          contextual_query: question
         });
       }
     }
@@ -423,7 +439,7 @@ Kembalikan HANYA dalam format JSON valid tanpa markdown (tanpa backticks \`\`\`j
     // ===================================================
     // STEP 4: NORMALISASI + EXTRACT HARGA FILTER
     // ===================================================
-    const { normalized, hargaFilter } = normalizeQuestion(correctedQuestion);
+    const { normalized, hargaFilter, jenisTempatFilter } = normalizeQuestion(correctedQuestion);
 
     // ===================================================
     // STEP 5: GET SCHEMA
@@ -473,15 +489,13 @@ Always ORDER BY rating DESC (unless user asks for popular/viral or "lainnya", "l
 Always LIMIT 5 if user asks about restaurants.
 Use table name: restoran.
 Do NOT use SELECT *.
-Always include these columns in SELECT: nama_resto, rating, jumlah_review, harga, daerah, latitude, longitude, alamat, jenis_tempat.
+Always include these columns in SELECT: nama_resto, rating, jumlah_review, harga, daerah, latitude, longitude, alamat, jenis_tempat, gambar.
 
 Rules:
 - All column names and string values in the database are lowercase.
 - If user asks about "populer", "terkenal", "hits", or "viral", use: ORDER BY jumlah_review DESC, rating DESC
-- If user asks about "oleh oleh", use: jenis_tempat LIKE '%oleh oleh%'
-- If user asks about "cafe", use: jenis_tempat LIKE '%cafe%'
 - If user mentions a specific name, brand, or an unknown word that is not a region, ASSUME it is a restaurant name and use: nama_resto LIKE '%word%'
-- If user asks for the count/number of restaurants, ALWAYS include 'daerah' in SELECT: SELECT daerah, COUNT(id) as jumlah_restoran FROM restoran [with optional WHERE clause] GROUP BY daerah ORDER BY daerah ASC
+- If user asks for the count or total number of restaurants (e.g., "berapa banyak restoran", "jumlah restoran"), ALWAYS use: SELECT daerah, COUNT(id) as jumlah_restoran FROM restoran [with optional WHERE clause] GROUP BY daerah ORDER BY daerah ASC
 - For tipe_makanan filters, use: tipe_makanan LIKE '%value%'
 - If user asks about "seafood", use: tipe_makanan LIKE '%makanan laut%'
 - If user asks about "pantai" (beach) or similar locations, use: alamat LIKE '%pantai%'
@@ -490,6 +504,9 @@ Rules:
 
 ${hargaFilter
   ? `- CRITICAL PRICE FILTER: You MUST include exactly "${hargaFilter}" in the WHERE clause.`
+  : ""}
+${jenisTempatFilter
+  ? `- CRITICAL CATEGORY FILTER: You MUST include exactly "${jenisTempatFilter}" in the WHERE clause.`
   : ""}
 
 Database schema:

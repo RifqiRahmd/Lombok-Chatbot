@@ -7,6 +7,7 @@ type Message = {
   content: string;
   data?: any[];
   type?: "resto" | "daerah" | "suggestion" | "statistik";
+  contextual_query?: string;
 };
 
 export default function Chatbot() {
@@ -62,9 +63,17 @@ export default function Chatbot() {
 
     try {
       // Dapatkan pesan user sebelumnya sebagai memori konteks
-      // Abaikan pesan pendek/kelanjutan ("lainnya", "terdekat") agar history selalu menyimpan kueri utama
-      const userMessages = messages.filter((m) => m.role === "user" && !/^(lainn?ya|lagi|yang lain|ada lagi|sini|terdekat|sekitar|tengah kota|pusat kota|pantai)$/i.test(m.content.trim()));
-      const lastUserMsg = userMessages.length > 0 ? userMessages[userMessages.length - 1].content : "";
+      const lastAssistantMsg = messages.filter((m) => m.role === "assistant").pop();
+      let lastUserMsg = "";
+
+      if (lastAssistantMsg && lastAssistantMsg.contextual_query) {
+        // Jika asisten terakhir kali memblokir kueri, gunakan kueri yang sudah dijahit dari asisten sebagai history!
+        lastUserMsg = lastAssistantMsg.contextual_query;
+      } else {
+        // Abaikan pesan pendek/kelanjutan ("lainnya", "terdekat") agar history selalu menyimpan kueri utama
+        const userMessages = messages.filter((m) => m.role === "user" && !/^(lainn?ya|lagi|yang lain|ada lagi|sini|terdekat|sekitar|tengah kota|pusat kota|pantai)$/i.test(m.content.trim()));
+        lastUserMsg = userMessages.length > 0 ? userMessages[userMessages.length - 1].content : "";
+      }
 
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -88,6 +97,7 @@ export default function Chatbot() {
             ? suggestions.map((s: string) => ({ suggestion: s }))
             : data.result || [],
           type: isEmpty ? "suggestion" : data.type,
+          contextual_query: data.contextual_query,
         },
       ]);
     } catch {
@@ -261,37 +271,72 @@ export default function Chatbot() {
                     {/* CARD RESTO */}
                     {m.role === "assistant" && m.type === "resto" && m.data && m.data.length > 0 && (
                       <div style={{ marginTop: 10 }}>
-                        {m.data.map((r: any, idx: number) => (
-                          <div
-                            key={idx}
-                            style={{
-                              background: "#fffaf4",
-                              border: "1px solid #e8d5b7",
-                              borderRadius: 12,
-                              padding: 12,
-                              marginTop: 8,
-                              boxShadow: "0 4px 12px rgba(59,31,14,0.08)",
-                              cursor: "pointer",
-                              transition: "0.2s",
-                            }}
-                            onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.02)")}
-                            onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
-                            onClick={() => {
-                              const query = encodeURIComponent(r.nama_resto || "restoran di lombok");
-                              window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, "_blank");
-                            }}
-                          >
-                            <div style={{ fontWeight: 600, fontSize: 13, color: "#3b1f0e" }}>
-                              🍽️ {toTitleCase(r.nama_resto || "")}
+                        {m.data.map((r: any, idx: number) => {
+                          const fallbackImage = "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=400&q=80";
+                          const bgImage = r.gambar ? `/ASSET/${encodeURIComponent(r.gambar)}` : fallbackImage;
+
+                          return (
+                            <div
+                              key={idx}
+                              style={{
+                                background: "#fffaf4",
+                                border: "1px solid #e8d5b7",
+                                borderRadius: 12,
+                                overflow: "hidden",
+                                marginTop: 8,
+                                padding: 12,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: 12,
+                                boxShadow: "0 4px 12px rgba(59,31,14,0.08)",
+                                cursor: "pointer",
+                                transition: "0.2s",
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.02)")}
+                              onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+                              onClick={() => {
+                                const query = encodeURIComponent(r.nama_resto || "restoran di lombok");
+                                window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, "_blank");
+                              }}
+                            >
+                              <div style={{ flex: 1, minWidth: 0, paddingRight: 4 }}>
+                                <div style={{ fontWeight: 700, fontSize: 13.5, color: "#3b1f0e", lineHeight: 1.3, marginBottom: 4 }}>
+                                  {toTitleCase(r.nama_resto || "")}
+                                </div>
+                                <div style={{ fontSize: 11.5, color: "#c1440e", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                                  ★ {r.rating} <span style={{ color: "#9c5a1d", fontWeight: 400 }}>({r.jumlah_review || 0} ulasan)</span>
+                                </div>
+                                <div style={{ fontSize: 11, color: "#7a4f2e", marginTop: 4 }}>
+                                  💰 {formatHarga(r.harga)} • 📍 {toTitleCase(r.daerah || "")}
+                                </div>
+                                <div style={{ 
+                                  fontSize: 10.5, 
+                                  color: "#8c6b53", 
+                                  marginTop: 3, 
+                                  display: "-webkit-box",
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: "vertical",
+                                  overflow: "hidden"
+                                }}>
+                                  {toTitleCase(r.alamat || "")}
+                                </div>
+                              </div>
+                              <div
+                                style={{
+                                  width: 76,
+                                  height: 76,
+                                  flexShrink: 0,
+                                  borderRadius: 8,
+                                  backgroundImage: `url('${bgImage}')`,
+                                  backgroundSize: "cover",
+                                  backgroundPosition: "center",
+                                  border: "1px solid #e8d5b7"
+                                }}
+                              />
                             </div>
-                            <div style={{ fontSize: 12, color: "#9c5a1d", marginTop: 2 }}>
-                              ⭐ {r.rating} {r.jumlah_review ? `(${r.jumlah_review} ulasan)` : ""} | 💰 {formatHarga(r.harga)} | 📍 {toTitleCase(r.daerah || "")}
-                            </div>
-                            <div style={{ fontSize: 12, color: "#7a4f2e", marginTop: 2 }}>
-                              {toTitleCase(r.alamat)}
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
 
