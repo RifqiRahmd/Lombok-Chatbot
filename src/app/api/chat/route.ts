@@ -263,9 +263,14 @@ export async function POST(request: Request) {
     const questionHasRegion = REGEX_REGION.test(question);
 
     // 1. Backward Spasial: History ambigu, Question menjawab daerah
-    if (history && !historyHasRegion && REGEX_MEMORY_SPATIAL.test(history) && question.split(" ").length <= 5) {
+    if (history && !historyHasRegion && REGEX_MEMORY_SPATIAL.test(history) && !REGEX_SPATIAL_AMBIGUITY.test(question) && question.split(" ").length <= 5) {
       console.log(`🧠 [MEMORY] Menyambungkan ingatan (Backward Spasial): "${history}" + "${question}"`);
       question = history + " di daerah " + question;
+    }
+    // 2. Forward Spasial: History memiliki daerah, Question meminta 'terdekat/sini' tanpa menyebut daerah lagi
+    else if (history && historyHasRegion && !questionHasRegion && REGEX_SPATIAL_AMBIGUITY.test(question)) {
+      console.log(`🧠 [MEMORY] Menyambungkan ingatan (Forward Spasial): "${history}" + " -> " + "${question}"`);
+      question = history + " " + question;
     }
     // 3. Continuation: User meminta opsi "lainnya"
     else if (history && REGEX_MEMORY_CONTINUATION.test(question) && question.split(" ").length <= 5) {
@@ -610,6 +615,7 @@ Jawaban (1 kalimat saja):
       result,
       type,
       answer: greetingPrefix + answer,
+      contextual_query: question
     });
   } catch (err: any) {
     console.error("API ERROR:", err);
