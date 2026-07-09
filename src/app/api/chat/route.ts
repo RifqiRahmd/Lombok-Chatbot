@@ -24,7 +24,7 @@ const supabase = createClient(
 // Update this if you add/remove columns in your table.
 // ===================================================
 const HARDCODED_SCHEMA = `Tables:
-- restoran (id: uuid, nama_resto: text, daerah: text, alamat: text, rating: float, jumlah_review: int, harga: text, tipe_makanan: text, jenis_tempat: text, latitude: float, longitude: float)
+- restoran (id: uuid, nama_resto: text, daerah: text, alamat: text, rating: float, jumlah_review: int, harga: text, tipe_makanan: text, jenis_tempat: text, latitude: float, longitude: float, gambar: text)
 `;
 
 let cachedSchema: string | null = null;
@@ -262,12 +262,16 @@ export async function POST(request: Request) {
 
     const questionHasRegion = REGEX_REGION.test(question);
 
-    // 1. Backward Spasial: History ambigu, Question menjawab daerah
-    if (history && !historyHasRegion && REGEX_MEMORY_SPATIAL.test(history) && question.split(" ").length <= 5) {
+    if (history && !historyHasRegion && REGEX_MEMORY_SPATIAL.test(history) && !REGEX_SPATIAL_AMBIGUITY.test(question) && question.split(" ").length <= 5) {
       console.log(`🧠 [MEMORY] Menyambungkan ingatan (Backward Spasial): "${history}" + "${question}"`);
       question = history + " di daerah " + question;
     }
-    // 3. Continuation: User meminta opsi "lainnya"
+    else if (history && historyHasRegion && !questionHasRegion && REGEX_SPATIAL_AMBIGUITY.test(question)) {      
+      const regionMatch = history.match(REGEX_REGION);
+      const extractedRegion = regionMatch ? regionMatch[0] : "";
+      console.log(`🧠 [MEMORY] Menyambungkan ingatan (Forward Spasial): "${question}" + " -> " + "${extractedRegion}"`);
+      question = (question + " " + extractedRegion ).trim();
+    }    
     else if (history && REGEX_MEMORY_CONTINUATION.test(question) && question.split(" ").length <= 5) {
       console.log(`🧠 [MEMORY] Menyambungkan ingatan (Lainnya): "${history}" + " " + "${question}"`);
       question = history + " " + question;
@@ -489,7 +493,7 @@ Always ORDER BY rating DESC (unless user asks for popular/viral or "lainnya", "l
 Always LIMIT 5 if user asks about restaurants.
 Use table name: restoran.
 Do NOT use SELECT *.
-Always include these columns in SELECT: nama_resto, rating, jumlah_review, harga, daerah, latitude, longitude, alamat, jenis_tempat.
+Always include these columns in SELECT: nama_resto, rating, jumlah_review, harga, daerah, latitude, longitude, alamat, jenis_tempat, gambar.
 
 Rules:
 - All column names and string values in the database are lowercase.
@@ -610,6 +614,7 @@ Jawaban (1 kalimat saja):
       result,
       type,
       answer: greetingPrefix + answer,
+      contextual_query: question
     });
   } catch (err: any) {
     console.error("API ERROR:", err);
