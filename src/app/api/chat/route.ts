@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
 const REGEX_REGION = /\b(mataram|senggigi|kuta|gili|praya|selong|tanjung|mandalika|narmada|lombok|pink|nipah|tanjung aan|selong belanak|ampenan|klui)\b/i;
-const REGEX_SPATIAL_AMBIGUITY = /\b(sini|dekat|terdekat|sekitar|tengah kota|pusat kota)\b/i;
+const REGEX_SPATIAL_AMBIGUITY = /\b(sini|dekat|terdekat|sekitar|tengah kota|pusat kota|disini|area)\b/i;
 const REGEX_MEMORY_SPATIAL = /\b(sini|dekat|terdekat|sekitar|tengah kota|pusat kota|pinggir kota|pantai)\b/i;
 const REGEX_MEMORY_CONTINUATION = /\b(lainnya|lagi|yang lain|ada lagi)\b/i;
 // ===================================================
@@ -186,11 +186,10 @@ function normalizeQuestion(text: string): { normalized: string; hargaFilter: str
     jenisTempatFilter = "jenis_tempat ILIKE '%restoran%'";
   }
 
-  // Hapus kata harga dari kalimat supaya LLM tidak salah interpretasi
+  // Jangan hapus kata harga (mahal/murah) agar LLM paham instruksi harga.
+  // Hapus kata spasial ambigu (dekat/sini/terdekat) agar LLM tidak salah mengira itu nama alamat.
   normalized = normalized
-    .replace(/\bmahal\b/gi, "")
-    .replace(/\bsedang\b/gi, "")
-    .replace(/\bmurah\b/gi, "")
+    .replace(new RegExp(REGEX_SPATIAL_AMBIGUITY.source, "gi"), "")
     .replace(/\s{2,}/g, " ")
     .trim();
 
@@ -266,12 +265,12 @@ export async function POST(request: Request) {
       console.log(`🧠 [MEMORY] Menyambungkan ingatan (Backward Spasial): "${history}" + "${question}"`);
       question = history + " di daerah " + question;
     }
-    else if (history && historyHasRegion && !questionHasRegion && REGEX_SPATIAL_AMBIGUITY.test(question)) {      
-      const regionMatch = history.match(REGEX_REGION);
-      const extractedRegion = regionMatch ? regionMatch[0] : "";
-      console.log(`🧠 [MEMORY] Menyambungkan ingatan (Forward Spasial): "${question}" + " -> " + "${extractedRegion}"`);
-      question = (question + " " + extractedRegion ).trim();
-    }    
+    else if (history && historyHasRegion && !questionHasRegion && REGEX_SPATIAL_AMBIGUITY.test(question)) {            
+      const regionMatches = history.match(new RegExp(REGEX_REGION.source, "gi"));
+      const latestRegion = regionMatches ? regionMatches[regionMatches.length - 1] : ""; 
+      console.log(`🧠 [MEMORY] Menyambungkan ingatan (Forward Spasial): "${latestRegion}" + " -> " + "${question}"`);
+      question = (question + " " + latestRegion).trim();
+    }
     else if (history && REGEX_MEMORY_CONTINUATION.test(question) && question.split(" ").length <= 5) {
       console.log(`🧠 [MEMORY] Menyambungkan ingatan (Lainnya): "${history}" + " " + "${question}"`);
       question = history + " " + question;
@@ -498,13 +497,15 @@ Always include these columns in SELECT: nama_resto, rating, jumlah_review, harga
 Rules:
 - All column names and string values in the database are lowercase.
 - If user asks about "populer", "terkenal", "hits", or "viral", use: ORDER BY jumlah_review DESC, rating DESC
-- If user mentions a specific name, brand, or an unknown word that is not a region, ASSUME it is a restaurant name and use: nama_resto LIKE '%word%'
+- Words like "mataram", "senggigi", "kuta", "gili", "praya", "selong", "mandalika", "narmada", "nipah", "ampenan" are REGIONS, so you MUST use: daerah LIKE '%word%'. Do NOT use them in nama_resto.
+- If user mentions a specific restaurant name or brand (that is not a region), use: nama_resto LIKE '%word%'
 - If user asks for the count or total number of restaurants (e.g., "berapa banyak restoran", "jumlah restoran"), ALWAYS use: SELECT daerah, COUNT(id) as jumlah_restoran FROM restoran [with optional WHERE clause] GROUP BY daerah ORDER BY daerah ASC
 - For tipe_makanan filters, use: tipe_makanan LIKE '%value%'
 - If user asks about "seafood", use: tipe_makanan LIKE '%makanan laut%'
 - If user asks about "pantai" (beach) or similar locations, use: alamat LIKE '%pantai%'
 - "lombok" is the general location. If user mentions "lombok" or "pulau lombok", ignore it completely. Do NOT add ANY filters for it (e.g. do NOT use daerah LIKE '%lombok%' or alamat LIKE '%lombok%').
 - CRITICAL REGION RULE: NEVER include words like "pantai", "desa", "kota", "kabupaten", "kecamatan", or "jalan" inside the 'daerah' filter! For example, if user says "pantai nipah", you MUST use ONLY the core name: daerah LIKE '%nipah%'. Do NOT use daerah LIKE '%pantai nipah%'.
+- NEVER use ambiguous words like "sini", "dekat", "terdekat", "sekitar", or "area ini" as an 'alamat' or 'daerah' filter. Ignore them completely.
 
 ${hargaFilter
   ? `- CRITICAL PRICE FILTER: You MUST include exactly "${hargaFilter}" in the WHERE clause.`
@@ -579,6 +580,7 @@ SQL:
         answer:
           greetingPrefix +
           "Aku mengerti maksudmu (Pencarian berhasil diproses ✅), tapi kebetulan data restoran dengan kriteria tersebut belum tersedia di database kami. 😔 Mau coba cari menu atau daerah lain?",
+        contextual_query: question  
       });
     }
 
