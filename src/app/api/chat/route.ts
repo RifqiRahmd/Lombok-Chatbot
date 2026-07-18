@@ -383,19 +383,20 @@ Analisis pesan user berikut: "${question}"
 
 Tentukan intent (tujuan) dari pesan tersebut ke dalam salah satu dari 3 kategori berikut:
 1. "GREETING": Jika user hanya menyapa (contoh: halo, selamat pagi, hai, bro) atau basa-basi ringan (contoh: apa kabar, terima kasih) TANPA mencari restoran.
-2. "RESTAURANT_SEARCH": Jika user mencari restoran, makanan, cafe, harga, rating, daerah, atau lokasi (contoh: rekomendasi makan siang, daerah mana saja, halo cari cafe). Do NOT reject a query just because you think the region/city is outside Lombok (e.g., "Malaka", "Kuta"). Assume ANY location mentioned is a valid local area in Lombok.
+2. "RESTAURANT_SEARCH": Jika user mencari restoran, makanan, cafe, harga, rating, daerah, atau lokasi (contoh: rekomendasi makan siang, daerah mana saja, halo cari cafe).
 3. "UNRELATED": Jika user membahas topik di luar pencarian restoran, ATAU menanyakan informasi yang tidak mungkin ada di database rekomendasi (contoh: siapa pemilik restoran, pajak, omset, modal bisnis, lowongan kerja, resep makanan, siapa yang makan) MESKIPUN mengandung kata 'restoran' atau 'makanan'.
 
 Kembalikan HANYA dalam format JSON valid tanpa markdown (tanpa backticks \`\`\`json):
 {
   "intent": "GREETING" | "RESTAURANT_SEARCH" | "UNRELATED",
-  "reason": "Alasan spesifik kenapa intent ini dipilih (misal: 'User menanyakan siapa presiden', atau 'User menyapa', atau 'User mencari daftar restoran')",
-  "reply": "Jika intent GREETING atau UNRELATED, tulis balasan ramah & natural di sini dalam bahasa Indonesia. Jika GREETING, balas sapaannya (misal 'Selamat pagi! 🌅'). Jika UNRELATED, tolak dengan sopan dan arahkan untuk mencari restoran. Jika RESTAURANT_SEARCH, kosongkan string ini.",
-  "greeting_prefix": "Jika intent RESTAURANT_SEARCH tapi user juga menyisipkan sapaan (misal 'Halo, cari makanan'), tulis sapaan balasannya di sini (misal 'Halo! 👋 '). Jika tidak ada sapaan, kosongkan."
+  "reason": "Alasan spesifik kenapa intent ini dipilih",
+  "reply": "Jika intent GREETING atau UNRELATED, tulis balasan ramah di sini. Jika RESTAURANT_SEARCH, kosongkan.",
+  "greeting_prefix": "Jika intent RESTAURANT_SEARCH tapi ada sapaan, tulis balasannya (misal 'Halo! 👋 '). Jika tidak, kosongkan.",
+  "region_mentioned": "Ekstrak nama spesifik kota, pulau, daerah, atau wilayah yang dicari user (misal: 'Jakarta', 'Mataram', 'Kuta', 'Senggigi'). Jangan masukkan kata umum seperti 'pantai' atau 'sini'. Jika user tidak menyebutkan lokasi spesifik secara tertulis, isi dengan string kosong ''"
 }
 `;
 
-    let intentData = { intent: "RESTAURANT_SEARCH", reason: "", reply: "", greeting_prefix: "" };
+    let intentData = { intent: "RESTAURANT_SEARCH", reason: "", reply: "", greeting_prefix: "", region_mentioned: "" };
     try {
       let intentResponse = await callGroq(intentPrompt);
       intentResponse = intentResponse.replace(/```json/gi, "").replace(/```/g, "").trim();
@@ -435,6 +436,34 @@ Kembalikan HANYA dalam format JSON valid tanpa markdown (tanpa backticks \`\`\`j
         query: null,
         type: "suggestion",
       });
+    }
+
+    // STRICT SPATIAL WHITELIST CHECK
+    // Memblokir semua daerah yang tidak ada di dalam REGEX_REGION
+    if (intentData.intent === "RESTAURANT_SEARCH" && intentData.region_mentioned) {
+      // Hilangkan imbuhan kata umum jika terbawa (misal: 'daerah mataram' -> 'mataram')
+      const cleanRegion = intentData.region_mentioned.toLowerCase();
+      
+      if (!REGEX_REGION.test(cleanRegion)) {
+        console.log("\n=============================================");
+        console.log("🤖 [RELEVANCY ANALYZER]");
+        console.log("Pertanyaan Asli   :", question);
+        console.log("Evaluasi Keamanan : ✅ Lolos");
+        console.log("Evaluasi Spasial  : ❌ GAGAL (Wilayah Tidak Dikenal)");
+        console.log("Status Akhir      : ❌ UNRELATED (Out of Bounds)");
+        console.log(`Alasan            : User mencari lokasi '${intentData.region_mentioned}' yang tidak ada di daftar wilayah database kami.`);
+        console.log("FINAL SQL         : (Dibatalkan)");
+        console.log("=============================================\n");
+
+        return NextResponse.json({
+          success: false,
+          warning: true,
+          answer: `Maaf, aku belum punya rekomendasi restoran untuk daerah **${intentData.region_mentioned}**. Saat ini database kami baru mencakup area Lombok (seperti Mataram, Senggigi, Kuta, Gili, dsb). 🏝️`,
+          result: [],
+          query: null,
+          type: "suggestion",
+        });
+      }
     }
 
     const greetingPrefix = intentData.greeting_prefix ? intentData.greeting_prefix.trim() + " " : "";
