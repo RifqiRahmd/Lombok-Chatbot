@@ -458,7 +458,7 @@ Kembalikan HANYA dalam format JSON valid tanpa markdown (tanpa backticks \`\`\`j
         return NextResponse.json({
           success: false,
           warning: true,
-          answer: `Maaf, aku belum punya rekomendasi restoran untuk daerah **${intentData.region_mentioned}**. Saat ini database kami baru mencakup area Lombok (seperti Mataram, Senggigi, Kuta, Gili, dsb). 🏝️`,
+          answer: `Maaf, aku belum punya rekomendasi restoran untuk daerah ${intentData.region_mentioned}. Saat ini database kami baru mencakup area Lombok (seperti Mataram, Senggigi, Kuta, Gili, dsb). 🏝️`,
           result: [],
           query: null,
           type: "suggestion",
